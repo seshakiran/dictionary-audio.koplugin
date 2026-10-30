@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -14,7 +15,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lua5.1 zip unzip
       - name: Test
-        run: lua5.1 test.lua
+        run: |
+          lua5.1 test.lua
+          lua5.1 dictionary-audio-test.lua
       - name: Verify release package
         run: |
           metadata_version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
@@ -29,6 +32,7 @@ jobs:
             fingerink.koplugin/ink_capture.lua \
             fingerink.koplugin/ink_notebook.lua \
             fingerink.koplugin/ink_pdf.lua \
+            fingerink.koplugin/ink_refresh.lua \
             fingerink.koplugin/ink_render.lua \
             fingerink.koplugin/ink_store.lua \
             fingerink.koplugin/ink_transform.lua \

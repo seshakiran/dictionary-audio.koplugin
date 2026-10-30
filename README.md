@@ -74,21 +74,28 @@ Open:
 Top menu → More tools → Finger Ink
 ```
 
-Use **Start drawing** to enable the toolbar.
+A small circular status button always stays on the page, even if the old version's
+**Hide** setting was saved. It shows **READ / OFF**, **PEN / ON**, **MARK / ON**, or
+**ERASE / ON**. Tap it to open the radial tool wheel:
 
-- **Draw / Stop** — enable or disable drawing
-- **Pen / Mark / Eraser** — tap to cycle writing, freehand highlighting, and erasing
-- **Undo** — remove the last stroke on the current page
-- **Hide** — stop drawing and hide the toolbar
+- **Pen**, **Mark**, **Erase** select the tool directly and enable drawing.
+- **Read** stops drawing so normal reading, selection and dictionary lookup work.
+- **Undo** removes the last stroke; **4 px** cycles 2, 4 and 7 pixel pen widths.
+- **Note** opens the current page's typed note.
+- **Close**, the wheel center, or a tap outside collapses the wheel. The status
+  button stays visible; tap it to open the wheel again.
 
-The toolbar uses compact text buttons by default. In **Finger Ink → Toolbar
-style**, choose **Icons** for an even narrower toolbar. Long-press anywhere on
-the toolbar and drag it to a more convenient place; its position is remembered.
+Long-press and drag the collapsed status button to move it. Its position is saved.
+The **Open tool wheel** menu item and gesture shortcut also open it.
 
-One finger draws by default. Two-finger gestures continue to work normally.
+Drawing retains every distinct input point, merges overlapping brush stamps,
+and batches Android display posts at 30 Hz by default. A pen lift flushes the
+last pending pixels. **Display update rate** offers 20, 30 or 60 Hz; use 20 if
+Android falls behind, and 60 only if the device can keep up. This reduces CPU and
+window-copy overhead, but does not provide Viwoods' proprietary native pen latency.
+
 On builds with KOReader's stylus callback API, pen events are captured separately,
-including reported eraser and highlighter tools. Pen support depends on the Android
-input backend exposing the device's stylus; this is not a Viwoods native low-latency SDK.
+including reported eraser and highlighter tools. Android must expose the pen type.
 
 ### Viwoods AiPaper Mini
 
@@ -96,10 +103,10 @@ input backend exposing the device's stylus; this is not a Viwoods native low-lat
 2. Restart KOReader and open a book, then **More tools → Finger Ink → Start drawing**.
 3. Test the pen first. If it draws, enable **Stylus only (ignore fingers while drawing)**.
    This ignores every finger contact outside the toolbar while drawing, including
-   multi-touch palms. Tap **Stop** to turn pages or select text; the toolbar remains usable.
-4. Tap **Pen** to cycle to **Mark** for a wide dotted freehand highlight that leaves
+   multi-touch palms. Choose **Read** in the wheel to turn pages or select text; the status button remains usable.
+4. Choose **Mark** in the wheel for a wide dotted freehand highlight that leaves
    printed text readable on a monochrome screen. PDF export uses translucent yellow ink.
-5. For searchable text highlights, tap **Stop** or **Select text / highlight** in the
+5. For searchable text highlights, choose **Read** in the wheel or **Select text / highlight** in the
    menu, then long-press and select text using KOReader's normal highlight controls.
    Manage these in KOReader's Bookmarks; they are separate from freehand marks.
 
@@ -166,3 +173,36 @@ GitHub Actions. Version changes merged to `main` are tested and packaged as
 a release when those workflows are enabled. The release ZIP contains only the installable
 `fingerink.koplugin` directory; repository documentation and development files
 remain outside it.
+
+## Offline dictionaries and pronunciation on Android
+
+The optional `dictionary-audio.koplugin.zip` release asset adds **Hear English**
+to dictionary popups using KOReader's dictionary-button extension API, present
+in the inspected Viwoods build. It plays local recorded English headwords with
+Android MediaPlayer; there are no online calls or API keys. This pronounces the
+English lookup word for either English definitions or English–Spanish translations.
+It does not speak entire definitions or Spanish translations, and not every
+headword has a recording. Actual speaker output still requires device testing.
+
+Install the audio plugin in `koreader/plugins/` and restart KOReader. Put an
+English–English dictionary and an English–Spanish dictionary in separate folders
+under `koreader/data/dict/`; preserve each dictionary's attribution and license.
+The prepared dictionaries use GCIDE (108,121 entries, GPLv3+) from KOReader's
+[official download catalog](https://github.com/koreader/koreader/blob/master/frontend/ui/data/dictionaries.lua)
+and [WikDict English–Spanish](https://www.wikdict.com/page/download)
+(67,225 entries, CC BY-SA 4.0).
+
+Download the [WyabdcRealPeopleTTS recordings](https://stardict-4.sourceforge.net/index_en.php.html), then run:
+
+```sh
+python3 scripts/pack-english-audio.py WyabdcRealPeopleTTS.tar.bz2 english-audio
+```
+
+Copy the resulting `english-audio` directory to `koreader/data/dict/english-audio/`.
+The packer validates WAV headers and preserves every recording's bytes; the
+plugin skips invalid source files and uses a TSV index and bounded file offsets, avoiding tens of thousands of
+small MTP transfers. Audio data is not distributed in plugin releases.
+
+Choose **Read**, then long-press an English word. Use the popup dictionary selector
+to switch between definitions and Spanish translations, and **Hear English** to
+play its available recording. Use Android's media volume for playback volume.

@@ -25,6 +25,7 @@ local Capture = require("ink_capture")
 local InkBar = require("ink_bar")
 local InkPdf = require("ink_pdf")
 local Render = require("ink_render")
+local Refresh = require("ink_refresh")
 local Store = require("ink_store")
 local Transform = require("ink_transform")
 
@@ -57,6 +58,8 @@ function FingerInk:init()
         and G_reader_settings:readSetting("fingerink_stylus_only") == true
     self.notes = self.ui.doc_settings:readSetting("fingerink_notes") or {}
     self.bar = nil
+    self.refresh_hz = G_reader_settings:readSetting("fingerink_refresh_hz") or 30
+    self.live_refresh = Refresh.new(UIManager, Screen, true, self.refresh_hz)
     self.pen_width = G_reader_settings:readSetting("fingerink_pen_width") or PEN_MEDIUM
     self.live_fast = G_reader_settings:readSetting("fingerink_live_fast") ~= false
     self.bar_side = G_reader_settings:readSetting("fingerink_bar_side") or "right"
@@ -76,9 +79,7 @@ function FingerInk:init()
     self.ui.menu:registerToMainMenu(self)
     self.view:registerViewModule("fingerink", self)
 
-    if G_reader_settings:readSetting("fingerink_bar_shown") ~= false then
-        UIManager:nextTick(function() self:setBarShown(true) end)
-    end
+    UIManager:nextTick(function() self:setBarShown(true) end)
 end
 
 function FingerInk:registerDispatcher()
@@ -113,6 +114,7 @@ function FingerInk:onSuspend()
 end
 
 function FingerInk:teardown()
+    if self.live_refresh then self.live_refresh:cancel() end
     Capture:remove()
     self.drawing = false
     if self.bar then
@@ -164,18 +166,14 @@ function FingerInk:setBarShown(on)
         }
         UIManager:show(self.bar, "ui", self.bar.dimen)
     else
-        -- Invariant: drawing is never on without a way to turn it off.
-        self:setDrawing(false)
-        if not self.bar then return end
-        local dimen = self.bar:getVisibleDimen()
-        UIManager:close(self.bar)
-        self.bar = nil
-        UIManager:setDirty(self.ui, "ui", dimen)
+        -- Collapse instead of removing the only reachable way back in.
+        if self.bar then self.bar:setExpanded(false) end
     end
 end
 
 function FingerInk:onFingerInkBar()
-    self:setBarShown(self.bar == nil)
+    if not self.bar then self:setBarShown(true) end
+    self.bar:setExpanded(not self.bar.expanded)
     return true
 end
 
@@ -192,7 +190,7 @@ the only way to close one. So drawing yields for as long as one is up.
 ]]
 function FingerInk:dialogOnTop()
     local below = self.bar and self.bar:windowBelow()
-    return below ~= nil and below ~= self.ui
+    return (self.bar and self.bar.expanded) or (below ~= nil and below ~= self.ui)
 end
 
 -- ------------------------------------------------------------------- state
@@ -261,6 +259,13 @@ function FingerInk:setEraser(on)
     elseif self.bar then
         self.bar:update(true)
     end
+end
+
+function FingerInk:setTool(tool)
+    self:abortStroke()
+    self.eraser, self.highlighter = tool == "eraser", tool == "highlight"
+    self:setDrawing(true)
+    if self.bar then self.bar:update(true) end
 end
 
 function FingerInk:cycleTool()
@@ -447,6 +452,8 @@ function FingerInk:startStroke(x, y)
     self.stroke = { n = 1, w = highlight and 24 or self.pen_width,
         tool = highlight and "highlight" or "pen",
         sw = Screen:getWidth(), sh = Screen:getHeight(), x, y }
+    Render.stroke(Screen.bb, self.stroke, 0, 0, INK)
+    self:refreshBox(x, y, x, y, self.stroke.w)
 end
 
 function FingerInk:addPoint(x, y)
@@ -470,10 +477,7 @@ function FingerInk:endStroke()
     if not s then return end
     if self.stroke_page ~= self:currentPage() then self:repaint(); return end
 
-    if s.n == 1 then -- a dot: never painted live, paint it now
-        Render.stroke(Screen.bb, s, 0, 0, INK)
-        self:refreshBox(s[1], s[2], s[1], s[2], s.w)
-    end
+    if self.live_refresh then self.live_refresh:flush() end
     local page
     s.t, page, s.pdf_block = self:pageTransform(s)
     self.store:add(page or self.stroke_page, s)
@@ -481,6 +485,7 @@ function FingerInk:endStroke()
 end
 
 function FingerInk:abortStroke()
+    if self.live_refresh then self.live_refresh:cancel() end
     if not self.stroke then
         self.draw_slot = nil
         return
@@ -511,6 +516,7 @@ function FingerInk:paintTo(bb, x, y)
 end
 
 function FingerInk:repaint(refresh)
+    if self.live_refresh then self.live_refresh:cancel() end
     UIManager:setDirty(self.ui, refresh or "ui")
 end
 
@@ -529,11 +535,9 @@ function FingerInk:refreshBox(x0, y0, x1, y1, w)
     if y + bh > sh then bh = sh - y end
     if bw <= 0 or bh <= 0 then return end
 
-    if self.live_fast then
-        Screen:refreshFast(x, y, bw, bh)
-    else
-        Screen:refreshPartial(x, y, bw, bh)
-    end
+    if not self.live_refresh then self.live_refresh = Refresh.new(UIManager, Screen, self.live_fast, self.refresh_hz or 30) end
+    self.live_refresh.fast = self.live_fast
+    self.live_refresh:add(x, y, bw, bh)
 end
 
 -- -------------------------------------------------------------------- menu
@@ -736,14 +740,14 @@ function FingerInk:addToMainMenu(menu_items)
                 text = _("Start drawing"),
                 enabled_func = function() return not self.drawing end,
                 callback = function() self:setDrawing(true) end,
-                help_text = _([[Use the Draw/Stop button on the side toolbar to switch drawing off again. Two fingers also work as usual while drawing is on.]]),
+                help_text = _([[Tap the persistent status button to open the tool wheel. Choose Pen, Mark or Erase to write, and Read to turn pages or select text. Close collapses the wheel; the button stays visible.]]),
             },
             {
-                text = _("Show toolbar"),
-                checked_func = function() return self.bar ~= nil end,
+                text = _("Open tool wheel"),
+                checked_func = function() return self.bar and self.bar.expanded end,
                 check_callback_updates_menu = true,
                 callback = function(touchmenu_instance)
-                    self:setBarShown(self.bar == nil)
+                    self:onFingerInkBar()
                     if touchmenu_instance then touchmenu_instance:updateItems() end
                 end,
             },
@@ -756,11 +760,23 @@ function FingerInk:addToMainMenu(menu_items)
                 },
             },
             {
-                text = _("Toolbar style"),
-                sub_item_table = {
-                    self:styleItem(_("Text"), "text"),
-                    self:styleItem(_("Icons"), "icons"),
-                },
+                text = _("Display update rate"),
+                sub_item_table = (function()
+                    local items = {}
+                    for _, hz in ipairs({20,30,60}) do
+                        local rate = hz
+                        items[#items+1] = { text = tostring(rate) .. " Hz", radio=true,
+                            checked_func=function() return self.refresh_hz == rate end,
+                            callback=function()
+                                self.refresh_hz=rate
+                                G_reader_settings:saveSetting("fingerink_refresh_hz",rate)
+                                self.live_refresh:flush()
+                                self.live_refresh.interval=1/rate
+                            end }
+                    end
+                    return items
+                end)(),
+                help_text = _("30 Hz batches pen samples to reduce Android screen-copy overhead. Try 20 Hz if the device falls behind; 60 Hz posts more often. All stroke points are retained."),
             },
             {
                 text = _("Pen width"),

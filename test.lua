@@ -232,6 +232,19 @@ package.preload["logger"] = function()
     return { warn = noop, info = noop, dbg = noop, err = noop }
 end
 
+package.preload["ui/font"] = function() return { getFace=function() return {} end } end
+package.preload["ui/widget/textwidget"] = function()
+    return { new=function(_,o)
+        o.getSize=function() return {w=#o.text*7,h=18} end
+        o.free=function() end; o.paintTo=function() end
+        return o
+    end }
+end
+require("device").screen.bb={paintRect=function() end}
+local manager=require("ui/uimanager")
+manager.scheduleIn=function() end
+manager.unschedule=function() end
+
 -- ------------------------------------------------------------------ runner
 
 local failures, total = 0, 0
@@ -253,123 +266,87 @@ end
 
 -- ------------------------------------------------- toolbar input forwarding
 
-section("toolbar input forwarding (ADR-10)")
-
+section("permanent hub, radial wheel and input forwarding")
 do
     local Event = require("ui/event")
     local UIManager = require("ui/uimanager")
     local WidgetContainer = require("ui/widget/container/widgetcontainer")
     local InkBar = require("ink_bar")
-
     local log = {}
-
-    local Reader = WidgetContainer:extend{}     -- stands in for ReaderUI
-    function Reader:onGesture() log[#log+1] = "reader:gesture"; return true end
-    function Reader:onKeyPress() log[#log+1] = "reader:key"; return true end
-    function Reader:onSuspend() log[#log+1] = "reader:suspend"; return true end
-
-    local Menu = WidgetContainer:extend{}       -- stands in for TouchMenu
-    function Menu:onGesture() log[#log+1] = "menu:closed"; return true end
-
-    local Toast = WidgetContainer:extend{ toast = true }   -- Notification
-    function Toast:onGesture() log[#log+1] = "toast:gesture"; return true end
-
-    local plugin = { drawing = false, eraser = false }
-    function plugin:setDrawing() log[#log+1] = "plugin:draw" end
-    function plugin:setEraser() log[#log+1] = "plugin:eraser" end
-    function plugin:onFingerInkUndo() log[#log+1] = "plugin:undo" end
-    function plugin:setBarShown() log[#log+1] = "plugin:hide" end
-    function plugin:setBarPosition(x, y) self.bar_position = { x = x, y = y } end
-
-    local bar = InkBar:new{ plugin = plugin }
-    local d = bar.dimen
-    local by = d.y
-    for _, b in ipairs({ bar.draw_btn, bar.tool_btn, bar.undo_btn, bar.hide_btn }) do
-        local h = b:getSize().h
-        b.dimen = { x = d.x, y = by, w = d.w, h = h }
-        by = by + h
+    local Reader=WidgetContainer:extend{}
+    function Reader:onGesture() log[#log+1]="reader:gesture";return true end
+    function Reader:onKeyPress() log[#log+1]="reader:key";return true end
+    local Menu=WidgetContainer:extend{}
+    function Menu:onGesture() log[#log+1]="menu:closed";return true end
+    local Toast=WidgetContainer:extend{toast=true}
+    function Toast:onGesture() log[#log+1]="toast:gesture" end
+    local p={ drawing=false,eraser=false,highlighter=false,pen_width=4,ui={} }
+    function p:onFingerInkUndo() log[#log+1]="undo" end
+    function p:setTool(tool) self.drawing=true;self.eraser=tool=="eraser";self.highlighter=tool=="highlight";self.bar:update(true) end
+    function p:setDrawing(on) self.drawing=on;self.bar:update(true) end
+    function p:setPenWidth(w) self.pen_width=w end
+    function p:setBarPosition(x,y) self.bar_position={x=x,y=y} end
+    local bar=InkBar:new{plugin=p};p.bar=bar
+    local reader,menu,toast=Reader:new{},Menu:new{},Toast:new{}
+    UIManager._window_stack={{widget=reader},{widget=bar}}
+    local function tap(x,y)
+        log={};bar:handleEvent(Event:new("Gesture",{ges="tap",pos={x=x,y=y}}));return table.concat(log,",")
     end
-
-    check("text toolbar uses smaller font", bar.draw_btn.text_font_size, 16)
-    check("text toolbar is not bold", tostring(bar.draw_btn.text_font_bold), "false")
-
-    local icon_bar = InkBar:new{ plugin = plugin, style = "icons" }
-    check("icon toolbar selects icon style", icon_bar.style, "icons")
-    check("icon toolbar has no text label", icon_bar.draw_btn.text, nil)
-    check("icon toolbar uses the draw icon", icon_bar.draw_btn.icon, "edit")
-    check("icon toolbar is narrower", tostring(icon_bar.dimen.w < bar.dimen.w), "true")
-
-    local reader, menu, toast = Reader:new{}, Menu:new{}, Toast:new{}
-
-    -- Mirrors UIManager:sendEvent: toasts are notified but never consume, and
-    -- only the topmost non-toast window is offered the event for real.
-    local function sendEvent(event)
-        local stack = UIManager._window_stack
-        for i = #stack, 1, -1 do
-            local widget = stack[i].widget
-            if widget.toast then
-                widget:handleEvent(event)
-            else
-                return widget:handleEvent(event)
-            end
-        end
+    check("hub starts collapsed",bar.expanded,false)
+    check("hub clearly shows read mode",bar.state,"READ")
+    check("outside taps forward to reader",tap(10,10),"reader:gesture")
+    tap(bar.cx,bar.cy);check("tap opens radial wheel",bar.expanded,true)
+    for _,node in ipairs(bar.nodes) do
+        check("wheel node fits screen: "..node.id,node.x-bar.node_r>=0 and node.x+bar.node_r<=1000 and node.y-bar.node_r>=0 and node.y+bar.node_r<=1400,true)
     end
+    local pen=bar.nodes[1];tap(pen.x,pen.y)
+    check("pen selection enables drawing",p.drawing,true)
+    check("tool selection collapses wheel",bar.expanded,false)
+    check("collapsed hub shows selected tool",bar.state,"PEN")
+    check("hub remains reachable after collapse",bar:contains(bar.cx,bar.cy),true)
+    tap(bar.cx,bar.cy);local marker=bar.nodes[2];tap(marker.x,marker.y)
+    check("marker is selected directly",p.highlighter,true)
+    check("hub updates marker state",bar.state,"MARK")
+    tap(bar.cx,bar.cy);local undo=bar.nodes[4];check("undo runs its action",tap(undo.x,undo.y),"undo")
+    check("undo keeps wheel open",bar.expanded,true)
+    local width=bar.nodes[6];tap(width.x,width.y);check("width cycles",p.pen_width,7)
+    local read=bar.nodes[7];tap(read.x,read.y);check("Read disables drawing",p.drawing,false)
+    tap(bar.cx,bar.cy);local close=bar.nodes[8];tap(close.x,close.y)
+    check("Close leaves hub visible",bar:contains(bar.cx,bar.cy),true)
+    tap(bar.cx,bar.cy);check("closed wheel reopens with tap",bar.expanded,true)
+    tap(10,10);check("outside tap closes expanded wheel",bar.expanded,false)
+    UIManager._window_stack={{widget=reader},{widget=menu},{widget=bar}}
+    check("page tap forwards to open menu",tap(10,10),"menu:closed")
+    check("window below identifies dialog",bar:windowBelow(),menu)
+    UIManager._window_stack={{widget=reader},{widget=bar},{widget=toast}}
+    check("toast is skipped by forwarding",bar:windowBelow(),reader)
+    local x,y=bar.cx,bar.cy
+    bar:handleEvent(Event:new("Gesture",{ges="hold",pos={x=x,y=y}}))
+    bar:handleEvent(Event:new("Gesture",{ges="hold_release",pos={x=x-80,y=y+90}}))
+    check("hold-drag saves a new hub position",p.bar_position.x~=nil,true)
+    check("moved hub hit testing follows position",bar:contains(x-80,y+90),true)
+    bar:activate("collapse");check("collapse can always be repeated",bar.expanded,false)
+end
 
-    local function tap(x, y)
-        log = {}
-        sendEvent(Event:new("Gesture", { ges = "tap", pos = { x = x, y = y } }))
-        return table.concat(log, ",")
-    end
-
-    UIManager._window_stack = { { widget = reader }, { widget = bar } }
-    check("tap on Undo runs its callback", tap(bar.undo_btn.dimen.x + 5,
-                                                bar.undo_btn.dimen.y + 5), "plugin:undo")
-    check("tap on the page reaches the reader", tap(10, 10), "reader:gesture")
-    check("tap on the bar's border is swallowed", tap(d.x + 5, d.y + d.h - 5), "")
-
-    -- The reported bug: toolbar shown from an open menu left it unclosable.
-    UIManager._window_stack = { { widget = reader }, { widget = menu }, { widget = bar } }
-    check("tap on the page reaches the menu", tap(10, 10), "menu:closed")
-    check("bar buttons still work over a menu", tap(d.x + 5, d.y + 5), "plugin:draw")
-
-    UIManager._window_stack = { { widget = reader }, { widget = bar }, { widget = toast } }
-    check("a toast does not absorb the forward", tap(10, 10), "toast:gesture,reader:gesture")
-
-    UIManager._window_stack = { { widget = reader }, { widget = bar } }
-    log = {}
-    bar:handleEvent(Event:new("KeyPress", "RPgFwd"))
-    check("keypresses forward to the reader", table.concat(log, ","), "reader:key")
-
-    -- A hold is intentionally allowed to bubble through the buttons to the
-    -- MovableContainer. The release commits the new position.
-    local start_x, start_y = d.x + 5, d.y + 5
-    bar:handleEvent(Event:new("Gesture", {
-        ges = "hold", pos = { x = start_x, y = start_y },
-    }))
-    bar:handleEvent(Event:new("Gesture", {
-        ges = "hold_release", pos = { x = start_x + 80, y = start_y + 90 },
-    }))
-    local expected_x = math.min(d.x + 80, 1000 - d.w)
-    local expected_y = math.min(d.y + 90, 1400 - d.h)
-    check("long press moves toolbar", bar:contains(start_x + 80, start_y + 90), true)
-    check("moved position is persisted", plugin.bar_position.x, expected_x)
-    check("moved y position is persisted", plugin.bar_position.y, expected_y)
-
-    log = {}
-    bar:handleEvent(Event:new("Suspend"))
-    check("broadcast events are not forwarded", table.concat(log, ","), "")
-
-    -- FingerInk:dialogOnTop, which makes drawing yield while a dialog is up.
-    local function dialogOnTop()
-        local below = bar:windowBelow()
-        return below ~= nil and below ~= reader
-    end
-    UIManager._window_stack = { { widget = reader }, { widget = bar } }
-    check("reader alone is not a dialog", tostring(dialogOnTop()), "false")
-    UIManager._window_stack = { { widget = reader }, { widget = menu }, { widget = bar } }
-    check("an open menu is a dialog", tostring(dialogOnTop()), "true")
-    UIManager._window_stack = { { widget = reader }, { widget = bar }, { widget = toast } }
-    check("a toast is not a dialog", tostring(dialogOnTop()), "false")
+section("batched Android display posting")
+do
+    local Refresh=require("ink_refresh")
+    local pending,posts,removed={}, {},0
+    local manager={ scheduleIn=function(_,delay,fn) pending[#pending+1]={delay,fn} end,
+        unschedule=function() removed=removed+1 end }
+    local screen={ refreshFast=function(_,x,y,w,h) posts[#posts+1]={x,y,w,h} end }
+    local r=Refresh.new(manager,screen,true,30)
+    for i=1,120 do r:add(i,10,10,20) end
+    check("120 samples schedule one display post",#pending,1)
+    check("samples do not immediately copy the screen",#posts,0)
+    pending[1][2]()
+    check("scheduled frame posts once",#posts,1)
+    check("dirty region includes all samples",posts[1][3],129)
+    r:add(200,10,10,10);r:flush()
+    check("pen lift posts final pending pixels",#posts,2)
+    check("flush cancels pending timer",removed,1)
+    r:add(0,0,10,10);r:cancel();r:flush()
+    check("cancel cannot post stale drawing",#posts,2)
 end
 
 -- ------------------------------------------------------- PDF ink annotations
@@ -696,6 +673,36 @@ do
     p:onStylusEvent({slot=4,id=-1,tool=1})
     check("native pen release saves stroke", #p.store:get(2), 1)
     check("native pen state cleared", p.pen_down, false)
+end
+
+section("brush merging preserves stroke coverage")
+do
+    local Render=require("ink_render")
+    local function canvas()
+        local pixels,calls={},0
+        return {paintRect=function(_,x,y,w,h)
+            calls=calls+1
+            for px=x,x+w-1 do for py=y,y+h-1 do pixels[px..","..py]=true end end
+        end},pixels,function() return calls end
+    end
+    for _,line in ipairs({{20,20,120,30},{120,30,20,20},{40,80,20,10},{80,40,10,20},{10,10,10,80},{10,10,80,10},{10,10,10,10}}) do
+        local bb,actual=canvas()
+        Render.segment(bb,line[1],line[2],line[3],line[4],4,"black")
+        local expected={};local steps=math.max(math.abs(line[3]-line[1]),math.abs(line[4]-line[2]))
+        for i=0,steps do
+            local t=steps==0 and 0 or i/steps
+            local x=math.floor(line[1]+(line[3]-line[1])*t)-2
+            local y=math.floor(line[2]+(line[4]-line[2])*t)-2
+            for px=x,x+3 do for py=y,y+3 do expected[px..","..py]=true end end
+        end
+        local matches=true
+        for pixel in pairs(expected) do if not actual[pixel] then matches=false end end
+        for pixel in pairs(actual) do if not expected[pixel] then matches=false end end
+        check("merged brush preserves coverage "..table.concat(line,","),matches,true)
+    end
+    local bb,pixels,count=canvas()
+    Render.segment(bb,0,0,100,0,4,"black")
+    check("horizontal stroke uses one blitter call",count(),1)
 end
 
 -- ----------------------------------------------------------------- summary
