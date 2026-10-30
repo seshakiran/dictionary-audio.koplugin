@@ -1,3 +1,11 @@
+## 0.11.0 — native finger highlights and close control
+
+- Add a small × in the tray's top-right corner to close all inline options while keeping the launcher.
+- Default to Pen writes · Finger selects; retain native finger holds and drags for KOReader text highlights, notes and dictionary.
+- Keep Pen only for palm rejection and make Finger draws an explicit separate option, with saved input preference.
+- Block contacts that began during a pen stroke until they lift.
+- Rename the freehand Highlight tool to Marker without changing saved annotations.
+
 ## 0.10.0 — pen and highlighter colors
 
 - Add eight inline color chips with names and selected checkmarks for both tools.

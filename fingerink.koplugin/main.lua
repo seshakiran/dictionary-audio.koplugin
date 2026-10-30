@@ -3,8 +3,8 @@ PageScribe — write on book pages with a pen or finger.
 
 The side toolbar is the control surface: it is a normal widget sitting above
 ReaderUI, and the capture handler passes through any contact that starts inside
-it, so Draw/Stop stays reachable even while every other single-finger touch is
-being swallowed. Drawing can never be on without the toolbar visible.
+it, so controls stay reachable in every input mode. Native finger selection
+passes through by default. Drawing always keeps the launcher visible.
 ]]
 
 local Blitbuffer = require("ffi/blitbuffer")
@@ -55,8 +55,10 @@ function FingerInk:init()
     self.drawing = false
     self.eraser = false
     self.highlighter = false
-    self.stylus_only = Device.input and Device.input.registerStylusCallback ~= nil
-        and G_reader_settings:readSetting("fingerink_stylus_only") == true
+    self.input_mode=G_reader_settings:readSetting("fingerink_input_mode")
+    if self.input_mode~="pen_only" and self.input_mode~="finger_draw" then self.input_mode="select" end
+    if self.input_mode=="pen_only" and not (Device.input and Device.input.registerStylusCallback) then self.input_mode="select" end
+    self.stylus_only=self.input_mode=="pen_only"
     self.notes = self.ui.doc_settings:readSetting("fingerink_notes") or {}
     self.bar = nil
     self.refresh_hz = G_reader_settings:readSetting("fingerink_refresh_hz") or 30
@@ -192,9 +194,8 @@ end
 --[[--
 True while a menu or dialog is open over the reader.
 
-Drawing mode eats single-finger touches before UIManager ever sees them, which
-would otherwise make an open menu impossible to dismiss — tapping outside it is
-the only way to close one. So drawing yields for as long as one is up.
+Modal dialogs receive normal touch gestures in all input modes, so selection
+popups and note editors stay usable while the pen capture hook is installed.
 ]]
 function FingerInk:dialogOnTop()
     local below = self.bar and self.bar:windowBelow()
@@ -294,6 +295,7 @@ function FingerInk:resetContacts()
     self.n_contacts = 0
     self.passthrough = false
     self.draw_slot = nil
+    self.selection_blocked = false
 end
 
 function FingerInk:onFingerInkToggle()
@@ -370,8 +372,30 @@ function FingerInk:onStylusEvent(ev)
     return true
 end
 
+function FingerInk:inputMode()
+    return self.input_mode or (self.stylus_only and "pen_only" or "select")
+end
+-- Finger selection remains KOReader's own gesture stream: no ink or synthetic
+-- highlights. Contacts that began while the pen was down stay palm-blocked.
+function FingerInk:onSelectFrame(slots)
+    local blocked=self.selection_blocked or self.pen_down
+    if self.pen_down then self.selection_blocked=true end
+    for _,ev in ipairs(slots) do
+        local slot=ev.slot or 0
+        if ev.id and ev.id>=0 then
+            if not self.contacts[slot] then self.contacts[slot]=true;self.n_contacts=self.n_contacts+1 end
+        elseif self.contacts[slot] then
+            self.contacts[slot]=nil;self.n_contacts=self.n_contacts-1
+        end
+    end
+    if self.n_contacts==0 then self.selection_blocked=false end
+    return self:dialogOnTop() or not blocked
+end
+
 function FingerInk:onTouchFrame(slots)
-    if self.stylus_only then return self:onPalmFrame(slots) end
+    local mode=self:inputMode()
+    if mode=="select" then return self:onSelectFrame(slots) end
+    if mode=="pen_only" then return self:onPalmFrame(slots) end
     -- Finger mirrors must not end or cancel an active stylus stroke.
     if self.pen_down then return false end
     if not self.passthrough and self:dialogOnTop() then
@@ -631,10 +655,15 @@ function FingerInk:setHighlighterWidth(width)
     G_reader_settings:saveSetting("fingerink_highlighter_width",width)
     if self.bar then self.bar:update(true) end
 end
-function FingerInk:setInputMode(pen_only)
-    if pen_only and not (Device.input and Device.input.registerStylusCallback) then return end
-    self:abortStroke();self:resetContacts();self.stylus_only=pen_only
-    G_reader_settings:saveSetting("fingerink_stylus_only",pen_only)
+function FingerInk:setInputMode(mode)
+    -- Keep compatibility with the previous boolean setter.
+    if type(mode)=="boolean" then mode=mode and "pen_only" or "select" end
+    if mode~="select" and mode~="pen_only" and mode~="finger_draw" then return end
+    if mode=="pen_only" and not (Device.input and Device.input.registerStylusCallback) then return end
+    self:abortStroke();self:resetContacts()
+    self.input_mode=mode;self.stylus_only=mode=="pen_only"
+    G_reader_settings:saveSetting("fingerink_input_mode",mode)
+    G_reader_settings:saveSetting("fingerink_stylus_only",self.stylus_only)
     if self.bar then self.bar:update(true) end
 end
 
@@ -782,27 +811,28 @@ function FingerInk:addToMainMenu(menu_items)
         text = _("PageScribe"),
         sorting_hint = "more_tools",
         sub_item_table = {
-            { text = _("Stylus only (ignore fingers while drawing)"),
-                enabled_func = function() return Device.input and Device.input.registerStylusCallback ~= nil end,
-                checked_func = function() return self.stylus_only end,
-                callback = function()
-                    self:setDrawing(false)
-                    self.stylus_only = not self.stylus_only
-                    G_reader_settings:saveSetting("fingerink_stylus_only", self.stylus_only)
-                end,
-                help_text = _("Enable only after testing that your pen draws. All finger contacts outside the toolbar are ignored while drawing; press Stop to turn pages or select text.") },
+            { text=_("Input mode"),sub_item_table=(function()
+                local choices={}
+                for _,entry in ipairs({{"select",_("Pen writes · Finger selects")},{"pen_only",_("Pen only")},{"finger_draw",_("Finger draws")}}) do
+                    local mode,label=entry[1],entry[2]
+                    choices[#choices+1]={text=label,radio=true,
+                        enabled_func=function() return mode~="pen_only" or (Device.input and Device.input.registerStylusCallback~=nil) end,
+                        checked_func=function() return self:inputMode()==mode end,
+                        callback=function() self:setInputMode(mode) end}
+                end
+                return choices
+            end)()},
             { text = _("Book notebook"), sub_item_table_func = function() return self:notebookItems() end },
             { text = _("Add or edit this page note"), callback = function() self:editNote(self:currentPage()) end },
             { text = _("Export notebook (HTML with handwriting)"), callback = function() self:exportNotebook() end },
             { text = _("Select text / highlight"), callback = function() self:setDrawing(false) end,
                 help_text = _("Stops drawing. Long-press and drag over text to use KOReader's searchable highlights and notes.") },
             {
-                -- Deliberately closes the menu: turning drawing on swallows
-                -- single-finger taps, so an open menu would be unusable.
+                -- Close the menu before returning to the page and its chosen input mode.
                 text = _("Start drawing"),
                 enabled_func = function() return not self.drawing end,
                 callback = function() self:setDrawing(true) end,
-                help_text = _([[Tap the small status tab. Read, Pen, Highlight, and Erase activate immediately. Width and input options appear inline below the selected tool. Drag anywhere on the tray to move it. Audio opens dictionary pronunciation settings; ‹ collapses the tray.]]),
+                help_text = _([[Tap the small status tab. Read, Pen, Marker, and Erase activate immediately. Width and input options appear inline below the selected tool. Drag anywhere on the tray to move it. Audio opens dictionary pronunciation settings; × closes the tray and its options; the handwriting icon reopens it.]]),
             },
             {
                 text = _("Open toolbar"),

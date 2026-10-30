@@ -301,7 +301,7 @@ do
     function p:setInkColor(tool,id)
         self[tool=="highlight" and "highlighter_color" or "pen_color"]=id;self.bar:update(true)
     end
-    function p:setInputMode(on) self.stylus_only=on;self.bar:update(true) end
+    function p:setInputMode(mode) self.input_mode=mode;self.stylus_only=mode=="pen_only";self.bar:update(true) end
     p.ui.dictionary_audio={showSettings=function() log[#log+1]="audio" end}
     require("device").input={registerStylusCallback=function() end}
     function p:setBarPosition(x,y) self.bar_position={x=x,y=y} end
@@ -327,7 +327,7 @@ do
     check("reading tray is one slim row",bar.dimen.h,48)
     tap("pen")
     check("one tap immediately activates pen",p.drawing and not p.highlighter and not p.eraser,true)
-    check("pen choices open inline",bar.expanded and bar.dimen.h==134,true)
+    check("pen choices open inline",bar.expanded and bar.dimen.h==176,true)
     for _,width in ipairs({2,4,7,9,10,12}) do
         tap("width_"..width);check("inline pen width "..width,p.pen_width,width)
     end
@@ -338,11 +338,13 @@ do
     tap("pen");check("switching tools preserves pen color",p.pen_color,"red")
 
     tap("pen_only");check("inline input mode changes immediately",p.stylus_only,true)
-    tap("touch")
+    tap("finger_draw");check("finger drawing is explicitly optional",p.input_mode,"finger_draw")
+
+    tap("select")
     tap("highlight");check("one tap immediately activates highlight",p.highlighter,true)
     tap("width_12");check("inline highlight width changes independently",p.highlighter_width,12)
     check("highlight does not change pen width",p.pen_width,7)
-    check("status uses actual highlight width",bar:displayInfo().detail,"12 px · Pen + finger")
+    check("status uses actual highlight width",bar:displayInfo().detail,"12 px · Finger selects text")
     tap("eraser");check("one tap immediately activates eraser",p.eraser,true)
     tap("read");check("Read stops drawing",p.drawing,false)
     check("Read removes unnecessary inline options",bar.dimen.h,48)
@@ -355,6 +357,11 @@ do
     open();check("Notes is a direct tray action",tap("note"),"notes")
     open();tap("collapse")
     check("collapse keeps selected tool",bar.expanded or bar:activeId()~="pen",false)
+    check("close button collapses all inline options",#bar:buttons(),0)
+    open()
+    check("top-right close has explicit cross",bar:buttons()[8].label,"×")
+    tap("collapse")
+
     check("status tab remains reachable",bar:contains(bar.cx,bar.cy),true)
     -- Pan directly, without a long press; move on every frame and persist on release.
     local x,y=bar.cx,bar.cy
@@ -392,7 +399,7 @@ do
         tap("highlight");tap("width_36");check("highlight works after relocation "..index,p.highlighter_width,36)
         tap("eraser");check("eraser works after relocation "..index,p.eraser,true)
         tap("pen_only");check("input choice works after relocation "..index,p.stylus_only,true)
-        tap("touch");tap("audio");check("Audio works after relocation "..index,log[1],"audio")
+        tap("select");tap("audio");check("Audio works after relocation "..index,log[1],"audio")
         open();tap("note");check("Notes works after relocation "..index,log[1],"notes")
         open();tap("pen")
         p.store={get=function() return {{n=1}} end}
@@ -412,7 +419,7 @@ do
     UIManager._window_stack={{widget=reader},{widget=menu},{widget=bar}}
     check("page tap forwards to an open dialog",gesture("tap",500,500),"menu")
     UIManager._window_stack={{widget=reader},{widget=bar}}
-    p.drawing=true;p.highlighter=false;p.eraser=false;p.stylus_only=true
+    p.drawing=true;p.highlighter=false;p.eraser=false;p.stylus_only=true;p.input_mode="pen_only"
     check("status names actual width and input",bar:displayInfo().detail,"7 px · Pen only")
     p.store={get=function() return {} end}
     check("empty-page Undo remains unavailable",bar:canUndo(),false)
@@ -905,6 +912,50 @@ do
     check("inline mode permits pen and finger",p.stylus_only,false)
     p:setInputMode(true)
     check("inline mode permits pen only",p.stylus_only,true)
+    -- Native selection goes through the real capture wrapper unchanged.
+    p:setInputMode("select")
+    check("native text selection is an explicit saved mode",settings.fingerink_input_mode,"select")
+    local old_input=Device.input
+    Device.input={gesture_detector={feedEvent=function(_,slots) return slots.gestures or {} end},
+        registerStylusCallback=function(self,fn) self.stylus_callback=fn end}
+    Capture:install(function(slots) return p:onTouchFrame(slots) end,function(ev) return p:onStylusEvent(ev) end)
+    for i,name in ipairs({"hold","hold_pan","hold_release"}) do
+        local frame={{slot=0,id=i==3 and -1 or 44,x=550+i*20,y=500},gestures={name}}
+        local events=Device.input.gesture_detector:feedEvent(frame)
+        check("native sentence selection retains "..name,events[1],name)
+    end
+    check("finger selection cannot create a freehand stroke",p.stroke,nil)
+    p:onStylusEvent({slot=4,id=45,tool=1,x=300,y=300})
+    check("pen still writes in native-select mode",p.stroke~=nil,true)
+    check("palm during pen down is suppressed",p:onTouchFrame({{slot=0,id=46,x=600,y=600}}),false)
+    p:onStylusEvent({slot=4,id=-1,tool=1})
+    check("palm stays blocked until its lift",p:onTouchFrame({{slot=0,id=-1}}),false)
+    check("fresh finger works after pen and palm release",p:onTouchFrame({{slot=0,id=47,x=600,y=600}}),true)
+    p:onTouchFrame({{slot=0,id=-1}})
+    p:setInputMode("finger_draw")
+    p:onTouchFrame({{slot=0,id=48,x=600,y=600}})
+    check("explicit finger-draw mode creates ink",p.stroke~=nil,true)
+    p:onTouchFrame({{slot=0,id=-1}})
+    p:setInputMode("select")
+    Capture:remove();Device.input=old_input
+    local old_read,old_tick=G_reader_settings.readSetting,UIManager.nextTick
+    local saved_mode=nil
+    G_reader_settings.readSetting=function(_,key)
+        if key=="fingerink_stylus_only" then return true end
+        if key=="fingerink_input_mode" then return saved_mode end
+    end
+    UIManager.nextTick=function() end
+    local function fresh()
+        local reader=FingerInk:extend{ui={doc_settings={readSetting=function() end},menu={registerToMainMenu=function() end}},
+            view={registerViewModule=function() end},registerDispatcher=function() end}
+        reader:init();return reader
+    end
+    check("upgrade defaults to native finger selection",fresh():inputMode(),"select")
+    saved_mode="finger_draw"
+    check("explicit finger-drawing choice survives restart",fresh():inputMode(),"finger_draw")
+    saved_mode="pen_only"
+    check("explicit pen-only choice survives restart",fresh():inputMode(),"pen_only")
+    G_reader_settings.readSetting,UIManager.nextTick=old_read,old_tick
     p:openNotes()
     check("Notes dialog offers current-page editor",shown.buttons[1][1].text,"Add / edit this page note")
     UIManager.show=old_show

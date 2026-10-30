@@ -81,18 +81,18 @@ the opened tray uses the screen’s normal scale and larger touch targets. The d
 edge, away from KOReader’s progress bar. Saved custom positions are preserved;
 the previous bottom-edge default is moved to the middle on upgrade.
 
-Tap **Read | Pen | Highlight | Erase** to activate a tool immediately. A filled
+Tap **Read | Pen | Marker | Erase** to activate a tool immediately. A filled
 button and checkmark show the active tool. Its options appear **inline below the
 strip**, so the page stays visible:
 
 - **Pen:** 2 / 4 / 7 / 9 / 10 / 12 px widths.
-- **Highlight:** 12 / 24 / 36 px widths, independent of the pen.
-- **Pen only / Pen + finger:** switch input directly in the same strip.
+- **Marker:** 12 / 24 / 36 px widths, independent of the pen.
+- **Input:** choose Pen writes · Finger selects (default), Pen only, or Finger draws inline.
 - **Read:** stops handwriting and removes the options row for reading and word lookup.
 - **Undo:** removes the last page stroke; unavailable when there is no page ink.
 - **Notes:** opens typed page notes, noted-page navigation and HTML export.
 - **Audio:** directly opens independent English and Spanish switches and Spanish speed.
-- **‹:** collapses the tray, preserving the active tool.
+- **× (top-right):** closes the tray and all inline options, preserving the active tool and the small handwriting launcher.
 
 **Drag anywhere on the tab or expanded tray** to move it. No long press is
 required. It follows the drag, stays within the screen and saves its final
@@ -265,7 +265,7 @@ GPL-3.0. Generation runs locally, preserves the original translation keys, and
 can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
 Use Android's media volume for playback volume.
 
-### PageScribe 0.10 controls
+### PageScribe 0.11 controls
 
 The small draggable tray keeps tool options inline. Active state is visible;
 there are no pending choices or tool-setting dialogs. Native pens can draw, highlight, erase, and tap
@@ -296,3 +296,20 @@ HTML notebook and PDF ink export preserve the selected colors. Existing
 handwriting retains its original appearance. Color screens use RGB ink and
 partial color refresh; monochrome screens show readable black ink while keeping
 the chosen colors in saved strokes and exports.
+
+### Native text highlights and optional finger drawing
+
+**Pen writes · Finger selects** is the default input mode, including on upgrade.
+Long-press a word with a finger and drag over a sentence to use KOReader's own
+text selection, highlights, notes and dictionary. The finger gesture stream is
+preserved; it does not create a freehand stroke. The pen can still write using
+the active tool. Finger contacts during a pen stroke are blocked until lifted.
+
+**Pen only** blocks fingers for palm rejection while keeping tray controls
+usable. **Finger draws** explicitly enables finger ink, instead of text
+selection. Choose Read to use normal reader gestures regardless of ink input.
+
+The freehand Highlight tool is now called **Marker**. Marker strokes remain
+page overlays; native text highlights remain KOReader's text annotations.
+The top-right **×** closes the tray, width/input/color rows together. Tap the
+handwriting icon to reopen it.

@@ -29,10 +29,11 @@ local THEMES={
     mono={shell=rgb(255),panel=rgb(255),ink=rgb(0),muted=rgb(0),line=rgb(0),soft=rgb(255),
         white=rgb(255),pen=rgb(0),highlight=rgb(0),eraser=rgb(0),read=rgb(0),action=rgb(0)},
 }
-local NAMES={read=_("Read"),pen=_("Pen"),highlight=_("Highlight"),eraser=_("Erase")}
+local NAMES={read=_("Read"),pen=_("Pen"),highlight=_("Marker"),eraser=_("Erase")}
 function InkBar:displayInfo()
     local p,id=self.plugin,self:activeId()
-    local input=p.stylus_only and _("Pen only") or _("Pen + finger")
+    local mode=p.input_mode or (p.stylus_only and "pen_only" or "select")
+    local input=mode=="pen_only" and _("Pen only") or mode=="finger_draw" and _("Finger draws") or _("Finger selects text")
     local width=tostring(id=="highlight" and (p.highlighter_width or 24) or p.pen_width or 4).." px"
     local help={read=_("Turn pages or hold a word to look it up."),
         pen=_("Write directly on the book page."),
@@ -76,7 +77,7 @@ end
 function InkBar:init()
     self.base_scale=Screen:scaleBySize(100)/100
     self.compact_scale=math.min(self.base_scale,1.5)
-    self.expanded_scale=math.min(self.base_scale,(Screen:getWidth()-8)/540,(Screen:getHeight()-8)/134)
+    self.expanded_scale=math.min(self.base_scale,(Screen:getWidth()-8)/540,(Screen:getHeight()-8)/176)
     self.scale=self.compact_scale
     self.tools={"read","pen","highlight","eraser"}
     self.color_mode=not not (Device.hasColorScreen and Device:hasColorScreen() and BB.ColorRGB32 and BB.TYPE_BBRGB32)
@@ -104,7 +105,7 @@ function InkBar:activeId()
 end
 function InkBar:traySize()
     return self.expanded and self:S(540) or self.hub_w,
-        self.expanded and self:S(self:activeId()=="read" and 48 or self:activeId()=="eraser" and 92 or 134) or self.hub_h
+        self.expanded and self:S(self:activeId()=="read" and 48 or self:activeId()=="eraser" and 92 or 176) or self.hub_h
 end
 function InkBar:clampPosition(x,y)
     local w,h=self:traySize()
@@ -180,12 +181,12 @@ function InkBar:buttons()
     if not self.expanded then return list end
     add("read",_("Read"),28,4,56,40,active=="read")
     add("pen",_("Pen"),86,4,56,40,active=="pen")
-    add("highlight",_("Highlight"),144,4,88,40,active=="highlight")
+    add("highlight",_("Marker"),144,4,88,40,active=="highlight")
     add("eraser",_("Erase"),234,4,62,40,active=="eraser")
     add("undo",_("Undo"),298,4,52,40,false,self:canUndo())
     add("note",_("Notes"),352,4,58,40)
     add("audio",_("Audio"),412,4,64,40)
-    add("collapse",_("Hide"),478,4,58,40)
+    add("collapse","×",508,4,28,28)
     if active~="read" then
         local widths=active=="highlight" and {12,24,36} or {2,4,7,9,10,12}
         if active~="eraser" then
@@ -193,13 +194,16 @@ function InkBar:buttons()
             local step=288/#widths
             for i,w in ipairs(widths) do add("width_"..w,tostring(w).." px",54+(i-1)*step,52,step-2,36,current==w) end
         end
-        add("pen_only",_("Pen only"),344,52,82,36,p.stylus_only,Device.input and Device.input.registerStylusCallback~=nil)
-        add("touch",_("Pen + finger"),428,52,108,36,not p.stylus_only)
+        local mode=p.input_mode or (p.stylus_only and "pen_only" or "select")
+        local y=active=="eraser" and 52 or 96
+        add("select",_("Pen writes · Finger selects"),4,y,232,34,mode=="select")
+        add("pen_only",_("Pen only"),238,y,118,34,mode=="pen_only",Device.input and Device.input.registerStylusCallback~=nil)
+        add("finger_draw",_("Finger draws"),358,y,178,34,mode=="finger_draw")
     end
     if active=="pen" or active=="highlight" then
         local selected=active=="highlight" and (p.highlighter_color or "yellow") or (p.pen_color or "black")
         for i,entry in ipairs(Colors.list) do
-            add("color_"..entry.id,entry.name,4+(i-1)*67,96,65,34,selected==entry.id)
+            add("color_"..entry.id,entry.name,4+(i-1)*67,138,65,34,selected==entry.id)
         end
     end
     return list
@@ -262,7 +266,7 @@ function InkBar:render()
             box(button.x+3,button.y+4,button.w-6,3,swatch)
         end
         local label=(button.selected and "✓ " or "")..button.label
-        local size=color_id and 10 or button.id:match("^width_") and 10.5 or (button.id=="pen_only" or button.id=="touch") and 11 or 12
+        local size=button.id=="collapse" and 18 or color_id and 10 or button.id:match("^width_") and 10.5 or button.id=="select" and 11 or 12
         local ink=button.selected and p.white or p.ink
         if button.selected and palette_color and self.color_mode
             and palette_color[1]*0.299+palette_color[2]*0.587+palette_color[3]*0.114>140 then ink=p.ink end
@@ -286,7 +290,7 @@ function InkBar:activate(id)
         self:setExpanded(false)
         if p.ui.dictionary_audio then p.ui.dictionary_audio:showSettings()
         else p:notify(_("Enable Dictionary audio in the plugin manager, then restart KOReader.")) end
-    elseif id=="pen_only" or id=="touch" then p:setInputMode(id=="pen_only")
+    elseif id=="select" or id=="pen_only" or id=="finger_draw" then p:setInputMode(id)
     elseif id:match("^color_") then p:setInkColor(self:activeId(),id:match("^color_(.+)"))
     elseif id:match("^width_") then
         local width=tonumber(id:match("%d+"))
