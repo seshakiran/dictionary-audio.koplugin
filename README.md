@@ -1,4 +1,6 @@
-# Finger Ink
+# Finger Ink — Viwoods notebook fork
+
+Fork of [SMUsamaShah/fingerink.koplugin](https://github.com/SMUsamaShah/fingerink.koplugin), under the original AGPL-3.0 license.
 
 Draw handwritten notes on KOReader pages with your finger. Designed for touch
 e-readers without a stylus, including Kindle Paperwhite.
@@ -38,7 +40,7 @@ future updates.
 ### Manual installation
 
 Download `fingerink.koplugin.zip` from the
-[latest release](https://github.com/SMUsamaShah/fingerink.koplugin/releases/latest),
+[latest release](https://github.com/seshakiran/fingerink.koplugin/releases/latest),
 extract it, and copy the resulting `fingerink.koplugin` directory into
 KOReader's `plugins` directory:
 
@@ -75,7 +77,7 @@ Top menu → More tools → Finger Ink
 Use **Start drawing** to enable the toolbar.
 
 - **Draw / Stop** — enable or disable drawing
-- **Pen / Eraser** — change tool
+- **Pen / Mark / Eraser** — tap to cycle writing, freehand highlighting, and erasing
 - **Undo** — remove the last stroke on the current page
 - **Hide** — stop drawing and hide the toolbar
 
@@ -83,7 +85,50 @@ The toolbar uses compact text buttons by default. In **Finger Ink → Toolbar
 style**, choose **Icons** for an even narrower toolbar. Long-press anywhere on
 the toolbar and drag it to a more convenient place; its position is remembered.
 
-One finger draws. Two-finger gestures continue to work normally.
+One finger draws by default. Two-finger gestures continue to work normally.
+On builds with KOReader's stylus callback API, pen events are captured separately,
+including reported eraser and highlighter tools. Pen support depends on the Android
+input backend exposing the device's stylus; this is not a Viwoods native low-latency SDK.
+
+### Viwoods AiPaper Mini
+
+1. Copy `fingerink.koplugin` into internal storage at `koreader/plugins/` using OpenMTP.
+2. Restart KOReader and open a book, then **More tools → Finger Ink → Start drawing**.
+3. Test the pen first. If it draws, enable **Stylus only (ignore fingers while drawing)**.
+   This ignores every finger contact outside the toolbar while drawing, including
+   multi-touch palms. Tap **Stop** to turn pages or select text; the toolbar remains usable.
+4. Tap **Pen** to cycle to **Mark** for a wide dotted freehand highlight that leaves
+   printed text readable on a monochrome screen. PDF export uses translucent yellow ink.
+5. For searchable text highlights, tap **Stop** or **Select text / highlight** in the
+   menu, then long-press and select text using KOReader's normal highlight controls.
+   Manage these in KOReader's Bookmarks; they are separate from freehand marks.
+
+The connected device's diagnostic file reported KOReader
+`v2026.07.2-206-g322551a_2026-09-28_android`. Its source includes the required stylus
+callback API. File transfer was verified through OpenMTP; live pen accuracy, palm
+behavior, PDF writes, and latency must still be checked on the tablet.
+
+Other handwriting plugins can also register stylus callbacks or gesture hooks.
+Disable **Stylus annotations** and **Ink Away** in KOReader's plugin manager and
+restart before testing Finger Ink alone. Existing notes from those plugins are
+not migrated or deleted. Finger Ink restores a previous stylus callback when drawing stops.
+
+### Manage written notes
+
+- **Book notebook** lists every page with handwriting or a typed note, sorted by page.
+  Open an entry to jump there, edit the note, or delete its ink and typed note after confirmation.
+- **Add or edit this page note** opens a full-screen text editor. The first line labels
+  that page in the notebook. Emptying and saving the text removes the typed note.
+- **Export notebook (HTML with handwriting)** creates `your-book.ext.fingerink.html`
+  beside the book. Open it in a browser to read, search typed notes, or print it.
+  The file embeds SVG handwriting and typed notes, with no network dependencies.
+  It does not include the copyrighted book pages, OCR, other plugins' ink, or native
+  KOReader text highlights. Older strokes lacking canvas dimensions use a 1000×1400 fallback.
+- Sidecar data holds editable strokes and typed notes. Back up the book's KOReader
+  sidecar too. HTML export is a viewing copy, not an importable backup.
+  Ink exported into the PDF leaves the sidecar and is no longer listed as editable ink.
+- Clearing ink through the original clear commands preserves typed notes. The notebook's
+  **Delete page ink and note** command removes both.
 
 ## Export ink into a PDF
 
@@ -101,7 +146,8 @@ Those strokes remain in the sidecar and the plugin explains what to correct.
 
 ## Limitations
 
-- No palm rejection.
+- Stylus-only mode blocks fingers while drawing when pen identification is available.
+  Finger mode has no palm rejection.
 - Changing layout after writing can move text while leaving ink behind,
   especially in reflowable books such as EPUBs.
 - Exported PDF ink cannot be edited by Finger Ink.
@@ -115,7 +161,8 @@ Those strokes remain in the sidecar and the plugin explains what to correct.
 
 ## Releases
 
-Every version change merged to `main` is tested and packaged automatically as
-a stable GitHub release. The release ZIP contains only the installable
+The repository includes CI and release workflows; fork owners may need to enable
+GitHub Actions. Version changes merged to `main` are tested and packaged as
+a release when those workflows are enabled. The release ZIP contains only the installable
 `fingerink.koplugin` directory; repository documentation and development files
 remain outside it.

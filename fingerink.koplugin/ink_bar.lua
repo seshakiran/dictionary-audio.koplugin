@@ -109,10 +109,10 @@ function InkBar:init()
         p:setDrawing(not p.drawing)
     end)
     self.tool_btn = self:mkButton(
-        p.eraser and _("Eraser") or _("Pen"),
-        p.eraser and ICONS.eraser or ICONS.pen,
+        p.eraser and _("Eraser") or (p.highlighter and _("Mark") or _("Pen")),
+        p.eraser and ICONS.eraser or (p.highlighter and ICONS.draw or ICONS.pen),
         w, function()
-        p:setEraser(not p.eraser)
+        p:cycleTool()
     end)
     self.undo_btn = self:mkButton(_("Undo"), ICONS.undo, w, function()
         p:onFingerInkUndo()
@@ -225,14 +225,14 @@ function InkBar:update(refresh)
             p.drawing and ICONS.stop or ICONS.draw,
             self.button_width)
         self.tool_btn:setIcon(
-            p.eraser and ICONS.eraser or ICONS.pen,
+            p.eraser and ICONS.eraser or (p.highlighter and ICONS.draw or ICONS.pen),
             self.button_width)
     else
         self.draw_btn:setText(
             p.drawing and _("Stop") or _("Draw"),
             self.button_width)
         self.tool_btn:setText(
-            p.eraser and _("Eraser") or _("Pen"),
+            p.eraser and _("Eraser") or (p.highlighter and _("Mark") or _("Pen")),
             self.button_width)
     end
     if refresh then

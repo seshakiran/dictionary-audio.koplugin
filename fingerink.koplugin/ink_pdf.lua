@@ -76,11 +76,12 @@ local function bucketByWidth(list)
             -- Rounded, so strokes drawn at fractionally different zoom levels
             -- still share a bucket instead of each getting its own annotation.
             local w = math.floor(s.w / s.t.z * 100 + 0.5) / 100
-            local bucket = buckets[w]
+            local key = tostring(w) .. ":" .. (s.tool or "pen")
+            local bucket = buckets[key]
             if not bucket then
                 bucket = {}
-                buckets[w] = bucket
-                widths[#widths + 1] = w
+                buckets[key] = bucket
+                widths[#widths + 1] = { w = w, key = key, highlight = s.tool == "highlight" }
             end
             bucket[#bucket + 1] = pts
         end
@@ -103,7 +104,8 @@ local function addPage(doc, store, page)
     end
     for i = 1, #widths do
         local w = widths[i]
-        pg:addInkAnnotation(buckets[w], INK_RGB, w, OPACITY)
+        pg:addInkAnnotation(buckets[w.key], w.highlight and { r = 1, g = 0.85, b = 0 } or INK_RGB,
+            w.w, w.highlight and 0.25 or OPACITY)
     end
     pg:close()
 

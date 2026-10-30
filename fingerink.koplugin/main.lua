@@ -19,6 +19,8 @@ local _ = require("gettext")
 local T = require("ffi/util").template
 local plugin_dir = debug.getinfo(1, "S").source:match("^@(.*/)") or "./"
 
+local Event = require("ui/event")
+local Notebook = require("ink_notebook")
 local Capture = require("ink_capture")
 local InkBar = require("ink_bar")
 local InkPdf = require("ink_pdf")
@@ -40,7 +42,7 @@ local FingerInk = WidgetContainer:extend{
 }
 
 local updater = dofile(plugin_dir .. "pluginupdater.lua").new{
-    repository = "SMUsamaShah/fingerink.koplugin",
+    repository = "seshakiran/fingerink.koplugin",
     branch = "main",
     folder = "fingerink.koplugin",
 }
@@ -50,6 +52,10 @@ local updater = dofile(plugin_dir .. "pluginupdater.lua").new{
 function FingerInk:init()
     self.drawing = false
     self.eraser = false
+    self.highlighter = false
+    self.stylus_only = Device.input and Device.input.registerStylusCallback ~= nil
+        and G_reader_settings:readSetting("fingerink_stylus_only") == true
+    self.notes = self.ui.doc_settings:readSetting("fingerink_notes") or {}
     self.bar = nil
     self.pen_width = G_reader_settings:readSetting("fingerink_pen_width") or PEN_MEDIUM
     self.live_fast = G_reader_settings:readSetting("fingerink_live_fast") ~= false
@@ -116,6 +122,7 @@ function FingerInk:teardown()
 end
 
 function FingerInk:onSaveSettings()
+    self.ui.doc_settings:saveSetting("fingerink_notes", self.notes)
     if self.store:isEmpty() then
         self.ui.doc_settings:delSetting(SETTING_KEY)
     else
@@ -132,10 +139,12 @@ function FingerInk:rebuildBar()
 end
 
 function FingerInk:onScreenResize()
+    self:abortStroke()
     self:rebuildBar()
 end
 
 function FingerInk:onSetRotationMode()
+    self:abortStroke()
     self:rebuildBar()
 end
 
@@ -225,7 +234,9 @@ function FingerInk:setDrawing(on)
 
     if on then
         if not self.bar then self:setBarShown(true) end
-        local ok = Capture:install(function(slots) return self:onTouchFrame(slots) end)
+        local ok = Capture:install(
+            function(slots) return self:onTouchFrame(slots) end,
+            function(slot) return self:onStylusEvent(slot) end)
         if not ok then
             logger.warn("FingerInk: no gesture_detector to hook")
             self:notify(_("Finger Ink: cannot hook touch input"))
@@ -236,18 +247,31 @@ function FingerInk:setDrawing(on)
         self:abortStroke()
         Capture:remove()
         self:resetContacts()
+        self.pen_down, self.pen_passthrough, self.stylus_tool = false, false, nil
         self.drawing = false
     end
     if self.bar then self.bar:update(true) end
 end
 
 function FingerInk:setEraser(on)
+    self.highlighter = false
     self.eraser = on and true or false
     if self.eraser and not self.drawing then
         self:setDrawing(true)   -- also updates the bar
     elseif self.bar then
         self.bar:update(true)
     end
+end
+
+function FingerInk:cycleTool()
+    if self.eraser then
+        self.eraser, self.highlighter = false, false
+    elseif self.highlighter then
+        self:setEraser(true)
+    else
+        self.highlighter = true
+    end
+    if self.bar then self.bar:update(true) end
 end
 
 function FingerInk:resetContacts()
@@ -275,7 +299,68 @@ end
 Called on every touch frame while drawing mode is on, before GestureDetector
 sees it. Returns true if the frame's gesture events should reach the app.
 ]]
+-- Stylus-only mode keeps toolbar contacts usable and swallows all other
+-- fingers, including multi-touch palms. Stop drawing to navigate normally.
+function FingerInk:onPalmFrame(slots)
+    if self:dialogOnTop() then return true end
+    local emit = self.passthrough
+    for _, ev in ipairs(slots) do
+        local slot = ev.slot or 0
+        if ev.id and ev.id >= 0 then
+            if not self.contacts[slot] then
+                if self.n_contacts == 0 and ev.x and ev.y then
+                    local x, y = Capture.toScreen(ev.x, ev.y)
+                    self.passthrough = self:inBar(x, y)
+                end
+                self.contacts[slot] = true
+                self.n_contacts = self.n_contacts + 1
+            end
+            emit = emit or self.passthrough
+        elseif self.contacts[slot] then
+            self.contacts[slot] = nil
+            self.n_contacts = self.n_contacts - 1
+        end
+    end
+    if self.n_contacts == 0 then self.passthrough = false end
+    return emit
+end
+
+function FingerInk:onStylusEvent(ev)
+    if not self.drawing then return false end
+    if self:dialogOnTop() then
+        self:abortStroke()
+        self.pen_down = false
+        self.pen_passthrough = true
+    end
+    if not ev.id or ev.id < 0 then
+        local emit = self.pen_passthrough
+        if self.pen_down then self:endStroke() end
+        self.pen_down, self.pen_passthrough, self.stylus_tool = false, false, nil
+        return not emit
+    end
+    if self.pen_passthrough then return false end
+    if not ev.x or not ev.y then return true end
+    local x, y = Capture.toScreen(ev.x, ev.y)
+    if not self.pen_down and self:inBar(x, y) then
+        self.pen_passthrough = true
+        return false
+    end
+    -- KOReader uses 0=finger, 1=pen, 2=eraser, 3=highlighter.
+    -- A finger mirror in the dedicated pen slot must never create ink.
+    if ev.tool == 0 then return true end
+    if self.pen_down and ev.tool ~= self.stylus_tool then self:endStroke() end
+    self.pen_down = true
+    self.stylus_tool = ev.tool
+    self.processing_stylus = true
+    self:onContactPoint(ev.slot or 0, ev.x, ev.y)
+    self.processing_stylus = false
+    return true
+end
+
 function FingerInk:onTouchFrame(slots)
+    if self.stylus_only then return self:onPalmFrame(slots) end
+    -- Finger mirrors must not end or cancel an active stylus stroke.
+    if self.pen_down then return false end
     if not self.passthrough and self:dialogOnTop() then
         -- Latches for the whole contact sequence, and re-latches on the next
         -- one, so drawing resumes by itself once the dialog is gone.
@@ -345,7 +430,7 @@ function FingerInk:onContactPoint(slot, raw_x, raw_y)
         return
     end
 
-    if self.eraser then
+    if self.eraser or (self.processing_stylus and self.stylus_tool == 2) then
         self:eraseAt(x, y)
     elseif self.stroke then
         self:addPoint(x, y)
@@ -357,7 +442,11 @@ end
 -- ------------------------------------------------------------------ stroke
 
 function FingerInk:startStroke(x, y)
-    self.stroke = { n = 1, w = self.pen_width, x, y }
+    self.stroke_page = self:currentPage()
+    local highlight = self.highlighter or (self.processing_stylus and self.stylus_tool == 3)
+    self.stroke = { n = 1, w = highlight and 24 or self.pen_width,
+        tool = highlight and "highlight" or "pen",
+        sw = Screen:getWidth(), sh = Screen:getHeight(), x, y }
 end
 
 function FingerInk:addPoint(x, y)
@@ -370,7 +459,7 @@ function FingerInk:addPoint(x, y)
     s[i + 2] = y
     s.n = s.n + 1
 
-    Render.segment(Screen.bb, px, py, x, y, s.w, INK)
+    Render.segment(Screen.bb, px, py, x, y, s.w, INK, s.tool == "highlight")
     self:refreshBox(px, py, x, y, s.w)
 end
 
@@ -379,6 +468,7 @@ function FingerInk:endStroke()
     self.stroke = nil
     self.draw_slot = nil
     if not s then return end
+    if self.stroke_page ~= self:currentPage() then self:repaint(); return end
 
     if s.n == 1 then -- a dot: never painted live, paint it now
         Render.stroke(Screen.bb, s, 0, 0, INK)
@@ -386,7 +476,8 @@ function FingerInk:endStroke()
     end
     local page
     s.t, page, s.pdf_block = self:pageTransform(s)
-    self.store:add(page or self:currentPage(), s)
+    self.store:add(page or self.stroke_page, s)
+    self:onSaveSettings()
 end
 
 function FingerInk:abortStroke()
@@ -405,6 +496,7 @@ function FingerInk:eraseAt(x, y)
     local idx = Store.hit(list, x, y, ERASER_RADIUS)
     if not idx then return end
     self.store:removeAt(page, idx)
+    self:onSaveSettings()
     self:repaint()
 end
 
@@ -452,6 +544,7 @@ function FingerInk:onFingerInkUndo()
         self:notify(_("Nothing to undo on this page"))
         return true
     end
+    self:onSaveSettings()
     self:repaint()
     return true
 end
@@ -495,6 +588,7 @@ function FingerInk:saveInk(pages)
         return
     end
 
+    self:onSaveSettings()
     -- The ink is drawn by MuPDF now, so the whole page has to come back.
     self:repaint("full")
     self:notify(skipped > 0
@@ -559,11 +653,83 @@ function FingerInk:styleItem(text, style)
     }
 end
 
+function FingerInk:editNote(page)
+    self:setDrawing(false)
+    local InputDialog = require("ui/widget/inputdialog")
+    local dialog
+    dialog = InputDialog:new{
+        title = T(_("Note for page %1"), page),
+        input = self.notes[page] or "", fullscreen = true,
+        allow_newline = true, add_scroll_buttons = true,
+        save_callback = function(content)
+            self.notes[page] = content ~= "" and content or nil
+            self:onSaveSettings()
+        end,
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function FingerInk:notebookItems()
+    local items = {}
+    for page_index, page in ipairs(Notebook.pages(self.store, self.notes)) do
+        local page_number = page
+        local count = #(self.store:get(page) or {})
+        local title = (self.notes[page] or ""):match("[^\r\n]+")
+        items[#items + 1] = {
+            text = T(_("Page %1 · %2 strokes"), page, count)
+                .. (title and (" · " .. title:sub(1, 80)) or ""),
+            sub_item_table = {
+                { text = _("Go to page"), callback = function()
+                    self:setDrawing(false)
+                    self.ui:handleEvent(Event:new("GotoPage", page_number))
+                end },
+                { text = _("Edit page note"), callback = function() self:editNote(page_number) end },
+                { text = _("Delete page ink and note"), callback = function()
+                    UIManager:show(ConfirmBox:new{
+                        text = T(_("Delete ink and note on page %1?"), page_number),
+                        ok_text = _("Delete"), ok_callback = function()
+                            self.store:clearPage(page_number)
+                            self.notes[page_number] = nil
+                            self:onSaveSettings()
+                            self:repaint()
+                        end,
+                    })
+                end },
+            },
+        }
+    end
+    if #items == 0 then items[1] = { text = _("No notes in this book"), enabled = false } end
+    return items
+end
+
+function FingerInk:exportNotebook()
+    self:setDrawing(false)
+    local path = self.ui.document.file .. ".fingerink.html"
+    local ok, err = Notebook.export(path, self.ui.document.file, self.store, self.notes)
+    self:notify(ok and T(_("Notebook saved to %1"), path)
+        or T(_("Could not export notebook: %1"), tostring(err)))
+end
+
 function FingerInk:addToMainMenu(menu_items)
     menu_items.fingerink = {
         text = _("Finger Ink"),
         sorting_hint = "more_tools",
         sub_item_table = {
+            { text = _("Stylus only (ignore fingers while drawing)"),
+                enabled_func = function() return Device.input and Device.input.registerStylusCallback ~= nil end,
+                checked_func = function() return self.stylus_only end,
+                callback = function()
+                    self:setDrawing(false)
+                    self.stylus_only = not self.stylus_only
+                    G_reader_settings:saveSetting("fingerink_stylus_only", self.stylus_only)
+                end,
+                help_text = _("Enable only after testing that your pen draws. All finger contacts outside the toolbar are ignored while drawing; press Stop to turn pages or select text.") },
+            { text = _("Book notebook"), sub_item_table_func = function() return self:notebookItems() end },
+            { text = _("Add or edit this page note"), callback = function() self:editNote(self:currentPage()) end },
+            { text = _("Export notebook (HTML with handwriting)"), callback = function() self:exportNotebook() end },
+            { text = _("Select text / highlight"), callback = function() self:setDrawing(false) end,
+                help_text = _("Stops drawing. Long-press and drag over text to use KOReader's searchable highlights and notes.") },
             {
                 -- Deliberately closes the menu: turning drawing on swallows
                 -- single-finger taps, so an open menu would be unusable.
@@ -649,6 +815,7 @@ function FingerInk:addToMainMenu(menu_items)
                 keep_menu_open = true,
                 callback = function()
                     if self.store:clearPage(self:currentPage()) then
+                        self:onSaveSettings()
                         self:repaint()
                     else
                         self:notify(_("No ink on this page"))
@@ -668,6 +835,7 @@ function FingerInk:addToMainMenu(menu_items)
                         ok_text = _("Delete"),
                         ok_callback = function()
                             self.store:clearAll()
+                            self:onSaveSettings()
                             self:repaint()
                         end,
                     })

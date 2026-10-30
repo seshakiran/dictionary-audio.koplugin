@@ -27,6 +27,7 @@ jobs:
             fingerink.koplugin/_meta.lua \
             fingerink.koplugin/ink_bar.lua \
             fingerink.koplugin/ink_capture.lua \
+            fingerink.koplugin/ink_notebook.lua \
             fingerink.koplugin/ink_pdf.lua \
             fingerink.koplugin/ink_render.lua \
             fingerink.koplugin/ink_store.lua \

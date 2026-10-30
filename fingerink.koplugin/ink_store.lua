@@ -93,13 +93,22 @@ segment-based — see ADR-7.
 ]]
 function Store.hit(list, x, y, r)
     if not list then return nil end
-    local r2 = r * r
     for i = #list, 1, -1 do
         local s = list[i]
         for j = 1, s.n * 2, 2 do
             local dx = s[j] - x
             local dy = s[j + 1] - y
-            if dx * dx + dy * dy <= r2 then return i end
+            local radius = r + (s.w or 0) / 2
+            if dx * dx + dy * dy <= radius * radius then return i end
+            if j < s.n * 2 - 1 then
+                local vx, vy = s[j + 2] - s[j], s[j + 3] - s[j + 1]
+                local length2 = vx * vx + vy * vy
+                if length2 > 0 then
+                    local t = math.max(0, math.min(1, -(dx * vx + dy * vy) / length2))
+                    local ex, ey = dx + t * vx, dy + t * vy
+                    if ex * ex + ey * ey <= radius * radius then return i end
+                end
+            end
         end
     end
     return nil

@@ -8,7 +8,16 @@ local floor = math.floor
 local Render = {}
 
 --- Paint a w-wide segment from (x0,y0) to (x1,y1) into bb.
-function Render.segment(bb, x0, y0, x1, y1, w, color)
+local function stamp(bb, x, y, w, color, highlight)
+    if not highlight then bb:paintRect(x, y, w, w, color); return end
+    for py = y + (-y % 4), y + w - 1, 4 do
+        for px = x + (-x % 4), x + w - 1, 4 do
+            bb:paintRect(px, py, 1, 1, color)
+        end
+    end
+end
+
+function Render.segment(bb, x0, y0, x1, y1, w, color, highlight)
     local half = floor(w / 2)
     local dx = x1 - x0
     local dy = y1 - y0
@@ -17,7 +26,7 @@ function Render.segment(bb, x0, y0, x1, y1, w, color)
     local steps = adx > ady and adx or ady
 
     if steps < 1 then
-        bb:paintRect(floor(x0) - half, floor(y0) - half, w, w, color)
+        stamp(bb, floor(x0) - half, floor(y0) - half, w, color, highlight)
         return
     end
 
@@ -26,7 +35,7 @@ function Render.segment(bb, x0, y0, x1, y1, w, color)
     local sy = dy / steps
     local x, y = x0, y0
     for _ = 0, steps do
-        bb:paintRect(floor(x) - half, floor(y) - half, w, w, color)
+        stamp(bb, floor(x) - half, floor(y) - half, w, color, highlight)
         x = x + sx
         y = y + sy
     end
@@ -39,12 +48,12 @@ function Render.stroke(bb, s, ox, oy, color)
     if n < 1 then return end
     if n == 1 then
         local half = floor(w / 2)
-        bb:paintRect(ox + s[1] - half, oy + s[2] - half, w, w, color)
+        stamp(bb, floor(ox + s[1]) - half, floor(oy + s[2]) - half, w, color, s.tool == "highlight")
         return
     end
     for i = 1, (n - 1) * 2, 2 do
         Render.segment(bb, ox + s[i], oy + s[i + 1],
-                           ox + s[i + 2], oy + s[i + 3], w, color)
+                           ox + s[i + 2], oy + s[i + 3], w, color, s.tool == "highlight")
     end
 end
 

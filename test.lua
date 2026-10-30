@@ -8,6 +8,8 @@ event dispatch, and a PdfDocument that records what it was asked to write.
     luajit test.lua
 ]]
 
+local unpack = unpack or table.unpack
+
 package.path = "fingerink.koplugin/?.lua;" .. package.path
 
 -- ------------------------------------------------------------------- stubs
@@ -492,6 +494,19 @@ do
     check("first holds two ink lists", #doc.annots[1].strokes, 2)
     check("second holds one", #doc.annots[2].strokes, 1)
 
+    -- Marker and pen of equal width must remain separate PDF annotations.
+    store = Store.new()
+    local marker = stroke(4, T1, 20, 20, 30, 30)
+    marker.tool = "highlight"
+    store:add(1, stroke(4, T1, 0, 0, 10, 10))
+    store:add(1, marker)
+    doc = fakeDoc()
+    check("pen and marker both export", (InkPdf.save({ document = doc }, store, {1})), 2)
+    check("marker uses separate annotation", #doc.annots, 2)
+    check("pen remains opaque", doc.annots[1].opacity, 1)
+    check("marker remains translucent", doc.annots[2].opacity, 0.25)
+    check("marker exports in yellow", doc.annots[2].color.r, 1)
+
     -- Strokes from a view with no page mapping stay put rather than landing wrong.
     store = Store.new()
     store:add(3, stroke(4, T1, 0, 0, 10, 10))
@@ -561,6 +576,126 @@ do
     check("nothing written", written, 0)
     check("nothing skipped", skipped, 0)
     check("no pointless write", doc.writes, 0)
+end
+
+section("notebook, highlight and eraser")
+do
+    local Store = require("ink_store")
+    local Notebook = require("ink_notebook")
+    local Render = require("ink_render")
+    local store = Store.new()
+    store:add(9, { n = 2, w = 4, sw = 600, sh = 800, 10, 20, 200, 20 })
+    store:add(2, { n = 1, w = 24, tool = "highlight", 20, 20 })
+    local notes = { [3] = '<script>alert("x")</script> & note', [9] = "Title\nBody" }
+    check("notebook merges and sorts typed and ink pages", table.concat(Notebook.pages(store, notes), ","), "2,3,9")
+    check("eraser hits between sparse samples", Store.hit(store:get(9), 100, 20, 1), 1)
+    check("eraser includes stroke width", Store.hit(store:get(9), 100, 23, 1), 1)
+    check("eraser does not hit distant segments", Store.hit(store:get(9), 100, 40, 1), nil)
+    local html = Notebook.html('book<&>.epub', store, notes)
+    check("HTML escapes book names", html:find('book&lt;&amp;&gt;.epub', 1, true) ~= nil, true)
+    check("HTML escapes typed content", html:find('<script>', 1, true), nil)
+    check("HTML preserves original canvas", html:find('viewBox="0 0 600 800"', 1, true) ~= nil, true)
+    check("HTML includes handwriting points", html:find('10,20 200,20', 1, true) ~= nil, true)
+    check("HTML includes highlight opacity", html:find('opacity="0.25"', 1, true) ~= nil, true)
+    local path = os.tmpname()
+    check("notebook export succeeds", not not Notebook.export(path, 'book', store, notes), true)
+    local f = assert(io.open(path, 'rb'))
+    check("export includes note text", f:read('*a'):find('Title', 1, true) ~= nil, true)
+    f:close(); os.remove(path)
+    check("export failure is reported", Notebook.export('/does-not-exist/notebook.html', 'book', store, notes), nil)
+    local pixels = {}
+    local bb = { paintRect = function(_, x, y, w, h)
+        for px = x, x + w - 1 do for py = y, y + h - 1 do pixels[px .. ',' .. py] = true end end
+    end }
+    local mark = { n = 2, w = 24, tool = "highlight", 20, 20, 80, 20 }
+    Render.stroke(bb, mark, 0, 0, "black")
+    local count = 0
+    for _ in pairs(pixels) do count = count + 1 end
+    check("highlighter leaves most underlying pixels intact", count > 0 and count < 200, true)
+    local first = count
+    Render.stroke(bb, mark, 0, 0, "black")
+    count = 0; for _ in pairs(pixels) do count = count + 1 end
+    check("highlighter replay does not darken overlaps", count, first)
+end
+
+section("stylus capture lifecycle and notebook controls")
+do
+    local Device = require("device")
+    local Capture = require("ink_capture")
+    local old_input = Device.input
+    local original = function() return { "gesture" } end
+    local previous = function() return "previous" end
+    Device.input = { gesture_detector = { feedEvent = original }, stylus_callback = previous,
+        registerStylusCallback = function(self, cb) self.stylus_callback = cb end }
+    local consumed = false
+    check("capture installs with pen API", Capture:install(function() return false end, function() return consumed end), true)
+    check("unhandled pen chains existing plugin", Device.input:stylus_callback({}), "previous")
+    consumed = true
+    check("handled pen is consumed once", Device.input:stylus_callback({}), true)
+    check("drawing suppresses gestures", #Device.input.gesture_detector:feedEvent({}), 0)
+    Capture:remove()
+    check("capture restores previous pen callback", Device.input.stylus_callback, previous)
+    check("capture restores gesture handler", Device.input.gesture_detector.feedEvent, original)
+    Device.input = old_input
+
+    package.preload["ui/widget/confirmbox"] = function() return require("ui/widget/container/widgetcontainer") end
+    package.preload["ui/widget/notification"] = function() return require("ui/widget/container/widgetcontainer") end
+    package.preload["dispatcher"] = function() return {} end
+    package.preload["ffi/util"] = function() return { template = function(s, ...)
+        local args = {...}; return (s:gsub('%%(%d+)', function(i) return tostring(args[tonumber(i)]) end))
+    end } end
+    local FingerInk = dofile('fingerink.koplugin/main.lua')
+    local Store = require("ink_store")
+    local settings = {}
+    local last_event
+    local p = FingerInk:extend{
+        notes = { [3] = "Typed note" }, store = Store.new(), drawing = false,
+        pen_width = 4, view = { state = { page = 1 } },
+        ui = { document = { is_pdf = false },
+            doc_settings = { saveSetting = function(_, k, v) settings[k] = v end,
+                delSetting = function(_, k) settings[k] = nil end },
+            handleEvent = function(_, e) last_event = e end },
+    }
+    p.store:add(5, { n = 2, w = 4, 10, 10, 100, 100 })
+    p:cycleTool(); check("pen cycles to marker", p.highlighter, true)
+    p.drawing = true
+    p:cycleTool(); check("marker cycles to eraser", p.eraser, true)
+    p:cycleTool(); check("eraser cycles to pen", p.eraser or p.highlighter, false)
+    p.drawing = false
+    local items = p:notebookItems()
+    items[2].sub_item_table[1].callback()
+    check("notebook navigation uses correct page closure", last_event.args[1], 5)
+    p:onSaveSettings()
+    check("typed notes saved independently of ink", settings.fingerink_notes[3], "Typed note")
+    p.highlighter = true
+    p:startStroke(10, 10)
+    check("new stroke records highlighter", p.stroke.tool, "highlight")
+    check("new stroke records canvas dimensions", p.stroke.sw, 1000)
+    p.view.state.page = 2
+    p:endStroke()
+    check("page change cannot put stroke on wrong page", p.store:get(2), nil)
+    p.highlighter = false
+    p.drawing = true
+    p.dialogOnTop = function() return false end
+    p.inBar = function(_, x) return x < 100 end
+    Device.screen.getRotationMode = function() return 0 end
+    Device.screen.DEVICE_ROTATED_UPRIGHT = 0
+    p.stylus_only = true
+    p.contacts, p.n_contacts, p.passthrough = {}, 0, false
+    p:onTouchFrame({ {slot=0,id=1,x=500,y=500}, {slot=1,id=2,x=600,y=600} })
+    check("palm cannot create a stroke", p.stroke, nil)
+    check("palm cannot turn pages", p:onTouchFrame({ {slot=0,id=-1}, {slot=1,id=-1} }), false)
+    check("toolbar stays usable with stylus only", p:onTouchFrame({ {slot=0,id=3,x=50,y=500} }), true)
+    check("toolbar release passes through", p:onTouchFrame({ {slot=0,id=-1} }), true)
+    p.refreshBox = function() end
+    Device.screen.bb = { paintRect = function() end }
+    p:onStylusEvent({slot=4,id=4,tool=1,x=300,y=300})
+    check("native pen starts stroke", p.stroke.n, 1)
+    p:onTouchFrame({ {slot=0,id=6,x=600,y=600}, {slot=0,id=-1} })
+    check("palm lift does not finish pen stroke", p.stroke.n, 1)
+    p:onStylusEvent({slot=4,id=-1,tool=1})
+    check("native pen release saves stroke", #p.store:get(2), 1)
+    check("native pen state cleared", p.pen_down, false)
 end
 
 -- ----------------------------------------------------------------- summary
