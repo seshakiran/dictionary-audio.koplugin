@@ -1,241 +1,39 @@
-> **PageScribe now has a standalone repository:** [seshakiran/pagescribe.koplugin](https://github.com/seshakiran/pagescribe.koplugin). Download the handwriting-only plugin and follow future development there. Existing notes and the `fingerink.koplugin` install folder stay compatible. This earlier fork retains the optional dictionary/audio sources and packs tooling.
+# Offline Dictionary Audio for KOReader
 
-# PageScribe — pen and touch notes for KOReader
+English pronunciation recordings and Spanish pronunciation for KOReader dictionary popups on Android. **Dictionary Audio installs and works independently of PageScribe.** When both plugins are installed, PageScribe provides a convenient Audio shortcut.
 
-Fork of [SMUsamaShah/fingerink.koplugin](https://github.com/SMUsamaShah/fingerink.koplugin), under the original AGPL-3.0 license.
+## Install the plugin
 
-Write and highlight directly on KOReader book pages with a pen or finger.
-Includes native Android stylus capture for Viwoods, palm blocking, page notes,
-and notebook export. Finger drawing also supports touch devices such as Kindle Paperwhite.
+1. Download **dictionary-audio.koplugin.zip** from the [latest release](https://github.com/seshakiran/dictionary-audio.koplugin/releases/latest).
+2. Extract it and copy **dictionary-audio.koplugin** into KOReader’s **plugins** directory.
+3. Install the audio packs described below, then fully close and reopen KOReader.
+4. Open a book, look up a word, and tap **Hear English** or **Hear Spanish**.
 
-https://github.com/user-attachments/assets/c9c4f543-999a-47e8-8ae3-d14274997e5f
+The final plugin path is `koreader/plugins/dictionary-audio.koplugin/main.lua`. If upgrading from the earlier bundled package, replace that same folder. Existing language preferences, speed settings, dictionaries and audio packs are compatible; no pack conversion or redownload is needed.
 
-<details>
-<summary>(FFMPEG commands that compressed this video 35MB -> 3MB)</summary>
+Requirements: Android and a KOReader build exposing `dictionary:addToDictButtons`. The Viwoods development build was v2026.07.2-206. Spanish speed control uses Android PlaybackParams (Android 6 or newer). On other platforms the code can load its menu, but Android MediaPlayer playback is unavailable.
 
-```
-ffmpeg -y -i input.mp4 -c:v libx264 -b:v 600k -pass 1 -an -f null NUL
-ffmpeg -i input.mp4 -c:v libx264 -b:v 600k -pass 2 -c:a aac -b:a 128k output.mp4
-```
-</details>
+## Use by itself
 
-Your ink is saved per page in KOReader's sidecar data, where it can be undone
-or erased. For PDFs, you can optionally export the ink as native PDF
-annotations so it is visible in Acrobat, Preview, and other PDF readers.
+**Top menu → More tools → Dictionary audio** provides independent English and Spanish ON/OFF switches and Spanish speech speed:
 
-PDF export is one-way: after export, PageScribe can no longer undo or erase
-those strokes.
+- **Normal:** 100%
+- **Slower:** 85%, the default
+- **Very slow:** 70%
 
-## Requirements
+Playback speed preserves the voice’s pitch; English stays at normal speed. Settings persist across books and restarts. Disabling a language hides its dictionary button and stops its current clip. Use Android’s media volume for loudness. **Update plugin** in this menu follows this repository.
 
-- KOReader 2026.03 or newer for drawing
-- KOReader 2026.07 or newer for PDF export
+**Hear English** plays the English headword. **Hear Spanish** lists the looked-up English word’s translations; tap a Spanish word to hear its pronunciation. These buttons pronounce words, rather than reading definitions aloud.
 
-## Install
+## Use together with PageScribe
 
-### AppStore or Storefront
+Install [PageScribe](https://github.com/seshakiran/pagescribe.koplugin) and Dictionary Audio as two separate plugins, then restart KOReader. PageScribe detects this plugin and shows **Audio** in its tray. That button opens these same pronunciation settings. Finger text selection and dictionary lookup remain KOReader’s native behavior.
 
-PageScribe keeps the original `fingerink` identity for compatible store updates.
-A store may still list it as **Finger Ink** until its catalog is updated. The store can
-compare the stable GitHub release with the version in `_meta.lua` and offer
-future updates.
+Neither repository bundles or requires the other. Definition dictionaries and audio packs are separate data. For developers, the integration contract is `reader_ui.dictionary_audio:showSettings()`, registered when Dictionary Audio initializes.
 
-### Manual installation
+## Audio packs and definition dictionaries
 
-Download `fingerink.koplugin.zip` from the
-[latest release](https://github.com/seshakiran/fingerink.koplugin/releases/latest),
-extract it, and copy the resulting `fingerink.koplugin` directory into
-KOReader's `plugins` directory:
-
-```sh
-scp -r fingerink.koplugin root@<kindle>:/mnt/us/koreader/plugins/
-```
-
-The final path should be:
-
-```text
-koreader/plugins/fingerink.koplugin/main.lua
-```
-
-Restart KOReader after installing.
-
-## KOReader setup
-
-No gesture setup is required. You do not need to assign or disable KOReader's
-long-press gesture.
-
-If PageScribe is disabled in KOReader's plugin manager, enable it and restart
-KOReader. Then open a document and use **Top menu → More tools → PageScribe**.
-The optional `PageScribe: ...` actions exposed to KOReader's gesture manager
-are shortcuts only; the plugin works without assigning any of them.
-
-## Use
-
-Open:
-
-```text
-Top menu → More tools → PageScribe
-```
-
-The tray collapses to a small **handwriting icon**, just 48 × 30
-logical pixels. Tap it to open a larger inline tool strip. The launch tab stays small, while
-the opened tray uses the screen’s normal scale and larger touch targets. The default position is midway down the right
-edge, away from KOReader’s progress bar. Saved custom positions are preserved;
-the previous bottom-edge default is moved to the middle on upgrade.
-
-Tap **Read | Pen | Marker | Erase** to activate a tool immediately. A filled
-button and checkmark show the active tool. Its options appear **inline below the
-strip**, so the page stays visible:
-
-- **Pen:** 2 / 4 / 7 / 9 / 10 / 12 px widths.
-- **Marker:** 12 / 24 / 36 px widths, independent of the pen.
-- **Input:** choose Pen writes · Finger selects (default), Pen only, or Finger draws inline.
-- **Read:** stops handwriting and removes the options row for reading and word lookup.
-- **Undo:** removes the last page stroke; unavailable when there is no page ink.
-- **Notes:** opens typed page notes, noted-page navigation and HTML export.
-- **Audio:** directly opens independent English and Spanish switches and Spanish speed.
-- **× (top-right):** closes the tray and all inline options, preserving the active tool and the small handwriting launcher.
-
-**Drag anywhere on the tab or expanded tray** to move it. No long press is
-required. It follows the drag, stays within the screen and saves its final
-position. Long-press dragging also works.
-
-Dictionary audio also has its own **Top menu → More tools → Dictionary audio**
-entry, separate from PageScribe.
-
-The **Open toolbar** menu item and gesture shortcut also open the strip. The
-tray uses a bounded cached buffer, integer pixel positions and measured text
-boxes. Moving it reuses its cached pixels and restores the page beneath it.
-
-Drawing retains every distinct input point, merges overlapping brush stamps,
-and batches Android display posts at 30 Hz by default. A pen lift flushes the
-last pending pixels. **Display update rate** offers 20, 30 or 60 Hz; use 20 if
-Android falls behind, and 60 only if the device can keep up. This reduces CPU and
-window-copy overhead, but does not provide Viwoods' proprietary native pen latency.
-
-On builds with KOReader's stylus callback API, pen events are captured separately,
-including reported eraser and highlighter tools. Android must expose the pen type.
-
-### Viwoods AiPaper Mini
-
-1. Copy `fingerink.koplugin` into internal storage at `koreader/plugins/` using OpenMTP.
-2. Restart KOReader and open a book, then **More tools → PageScribe → Start drawing**.
-3. Test the pen first. If it draws, enable **Stylus only (ignore fingers while drawing)**.
-   This ignores every finger contact outside the toolbar while drawing, including
-   multi-touch palms. Choose **Read** in the toolbar to turn pages or select text; the status button remains usable.
-4. Choose **Highlight** in the toolbar for a wide dotted freehand highlight that leaves
-   printed text readable on a monochrome screen. PDF export uses translucent yellow ink.
-5. For searchable text highlights, choose **Read** in the toolbar or **Select text / highlight** in the
-   menu, then long-press and select text using KOReader's normal highlight controls.
-   Manage these in KOReader's Bookmarks; they are separate from freehand marks.
-
-The connected device's diagnostic file reported KOReader
-`v2026.07.2-206-g322551a_2026-09-28_android`. Its source includes the required stylus
-callback API. File transfer was verified through OpenMTP; live pen accuracy, palm
-behavior, PDF writes, and latency must still be checked on the tablet.
-
-Other handwriting plugins can also register stylus callbacks or gesture hooks.
-Disable **Stylus annotations** and **Ink Away** in KOReader's plugin manager and
-restart before testing PageScribe alone. Existing notes from those plugins are
-not migrated or deleted. PageScribe restores a previous stylus callback when drawing stops.
-
-### Manage written notes
-
-- **Book notebook** lists every page with handwriting or a typed note, sorted by page.
-  Open an entry to jump there, edit the note, or delete its ink and typed note after confirmation.
-- **Add or edit this page note** opens a full-screen text editor. The first line labels
-  that page in the notebook. Emptying and saving the text removes the typed note.
-- **Export notebook (HTML with handwriting)** creates `your-book.ext.fingerink.html`
-  beside the book. Open it in a browser to read, search typed notes, or print it.
-  The file embeds SVG handwriting and typed notes, with no network dependencies.
-  It does not include the copyrighted book pages, OCR, other plugins' ink, or native
-  KOReader text highlights. Older strokes lacking canvas dimensions use a 1000×1400 fallback.
-- Sidecar data holds editable strokes and typed notes. Back up the book's KOReader
-  sidecar too. HTML export is a viewing copy, not an importable backup.
-  Ink exported into the PDF leaves the sidecar and is no longer listed as editable ink.
-- Clearing ink through the original clear commands preserves typed notes. The notebook's
-  **Delete page ink and note** command removes both.
-
-## Export ink into a PDF
-
-From the PageScribe menu, choose:
-
-- **Save this page into PDF**
-- **Save whole document into PDF**
-
-For reliable export, use page view. Continuous PDF view is supported when
-each stroke stays within one page. Strokes crossing the gap between pages are
-not exported.
-
-Ink drawn while reflow or page rotation is enabled may not be exportable.
-Those strokes remain in the sidecar and the plugin explains what to correct.
-
-## Limitations
-
-- Stylus-only mode blocks fingers while drawing when pen identification is available.
-  Finger mode has no palm rejection.
-- Changing layout after writing can move text while leaving ink behind,
-  especially in reflowable books such as EPUBs.
-- Exported PDF ink cannot be edited by PageScribe.
-- Fast refresh may look grainy or leave temporary ghosting.
-
-## Documentation
-
-- `spec.md` — implementation details
-- `decisions.md` — design decisions
-- `requirements.md` — original requirements
-
-## Releases
-
-The repository includes CI and release workflows; fork owners may need to enable
-GitHub Actions. Version changes merged to `main` are tested and packaged as
-a release when those workflows are enabled. The release ZIP contains only the installable
-`fingerink.koplugin` directory; repository documentation and development files
-remain outside it.
-
-## Offline dictionaries and pronunciation on Android
-
-The optional `dictionary-audio.koplugin.zip` release asset adds **Hear English**
-and **Hear Spanish** to dictionary popups using KOReader's dictionary-button
-extension API, present in the inspected Viwoods build. Both play fully local
-clips through Android MediaPlayer, with no online calls or API keys.
-
-- English uses the original human-recorded WyabdcRealPeopleTTS audio. Its
-  coverage is smaller than the English definition dictionary.
-- Spanish uses **Piper es_MX-claude-high**, a neural Mexican Spanish voice.
-  The clips retain the model's 22,050 Hz, 16-bit output with lossless FLAC
-  compression. They are synthetic pronunciations, not human recordings.
-  This replaces the earlier low-quality eSpeak 8-bit/11 kHz pack.
-- **Hear Spanish** opens a scrollable list of the English word's translations.
-  Tap a Spanish term to hear it. Neither audio button reads whole definitions.
-
-### Audio preferences
-
-Open **Top menu → Tools → More tools → Dictionary audio**:
-
-- **English pronunciation** independently shows/hides English audio.
-- **Spanish pronunciation** independently shows/hides Spanish audio. Turning it
-  off keeps English audio and Spanish dictionary text available.
-- **Spanish speech speed** offers **Normal**, **Slower (85%)**, and **Very slow
-  (70%)**. Slower is the default. Playback speed changes preserve pitch and apply
-  on the next Spanish clip; English remains at its normal speed.
-
-Settings persist across books and restarts. They do not require regenerating
-or reinstalling audio packs. Disabling a language stops its current clip.
-Speed control requires Android's PlaybackParams API (Android 6+), supported by
-the inspected Viwoods build. Physical playback and rendering still need tablet
-validation after each update; desktop tests do not reproduce the e-ink controller.
-
-### Dictionary data and reproducible audio
-
-Install the audio plugin in `koreader/plugins/` and restart KOReader. Put
-GCIDE and WikDict English–Spanish in separate folders under `koreader/data/dict/`.
-Preserve their attribution and licenses. GCIDE has 108,121 entries (GPLv3+), from
-KOReader's [official download catalog](https://github.com/koreader/koreader/blob/master/frontend/ui/data/dictionaries.lua).
-[WikDict English–Spanish](https://www.wikdict.com/page/download) has 67,225 entries
-(CC BY-SA 4.0).
-
-The audio packs are user data and are not bundled in plugin releases:
+The release ZIP contains plugin code and its license. It does **not** contain voice models, pronunciation recordings or dictionary definitions. Keep your existing packs, or build packs using the tools below. Required playback files are:
 
 ```text
 koreader/data/dict/english-audio/english.pack
@@ -245,73 +43,46 @@ koreader/data/dict/spanish-neural-audio/spanish.tsv
 koreader/data/dict/spanish-neural-audio/spanish-translations.tsv
 ```
 
-Prepare the English recordings from the
-[WyabdcRealPeopleTTS download](https://stardict-4.sourceforge.net/index_en.php.html):
+Only install the languages you want. Each `.tsv` index maps a word to the byte offset and length of its clip inside the matching `.pack`; index and pack files must come from the same build. Missing recordings are reported without falling back to an online service.
+
+KOReader supplies the dictionary lookup interface. Install definition dictionaries separately—for example, [GCIDE from KOReader’s catalog](https://github.com/koreader/koreader/blob/master/frontend/ui/data/dictionaries.lua) for English definitions and [WikDict English–Spanish](https://download.wikdict.com/dictionaries/stardict/wikdict-en-es.zip) for translations. The plugin does not replace KOReader’s dictionary engine. Preserve the dictionaries’ source and license files.
+
+### English recordings
+
+Obtain the [WyabdcRealPeopleTTS archive](https://sourceforge.net/projects/stardict-4/files/WyabdcRealPeopleTTS/) from its upstream source, then run:
 
 ```sh
 python3 scripts/pack-english-audio.py WyabdcRealPeopleTTS.tar.bz2 english-audio
 ```
 
-The old `scripts/pack-spanish-audio.py` creates the legacy eSpeak pack and its
-translation metadata. To replace those clips with the neural model, use an
-isolated Python environment with `piper-tts` and `soundfile` installed:
+The script packs existing human recordings without altering their audio bytes and skips invalid WAV files. Coverage is smaller than a full definition dictionary. Recordings are upstream data, not part of this code repository.
+
+### Spanish neural pronunciation
+
+The current Spanish voice is synthetic Mexican Spanish, **Piper es_MX-claude-high**, stored as lossless FLAC at 22,050 Hz / 16-bit. It is locally generated audio, not a human recording.
+
+The included legacy generator extracts translation metadata from an uncompressed WikDict StarDict `.idx` / `.dict` pair and builds an eSpeak seed pack:
 
 ```sh
-python scripts/pack-spanish-neural.py spanish-audio es_MX-claude-high.onnx spanish-neural-audio
+python3 scripts/pack-spanish-audio.py wikdict-en-es.idx wikdict-en-es.dict spanish-seed
 ```
 
-Download the model and its JSON configuration from
-[the Piper voice repository](https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_MX/claude/high).
-The model card identifies the voice dataset license as Apache-2.0; Piper is
-GPL-3.0. Generation runs locally, preserves the original translation keys, and
-can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
-Use Android's media volume for playback volume.
+That step requires the eSpeak NG shared library. The old seed audio is not used for playback by this version. To replace it with the clearer neural voice, obtain the model and its matching JSON configuration from the [Piper voice repository](https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_MX/claude/high), then run in a Python environment with `piper-tts`, `numpy`, `onnxruntime` and `soundfile`:
 
-### PageScribe 0.11 controls
+```sh
+python3 scripts/pack-spanish-neural.py spanish-seed es_MX-claude-high.onnx spanish-neural-audio
+```
 
-The small draggable tray keeps tool options inline. Active state is visible;
-there are no pending choices or tool-setting dialogs. Native pens can draw, highlight, erase, and tap
-the toolbar. Pen-only mode blocks finger ink and page gestures while keeping
-controls accessible. Pen compatibility depends on KOReader exposing the
-device's native stylus events.
+`SPANISH_PACE` defaults to `1.12`; `SPANISH_WORKERS` and `SPANISH_THREADS` control generation parallelism. Matching partial builds can resume; model/term/pace manifests prevent mixing different builds. Copy the completed neural directory to the playback path above, keeping `SOURCE.txt` and `generation.json`. The runtime speed preference is independent of generation pace.
 
-Color screens automatically use a blue, amber, coral, and teal palette with
-RGB-preserving text and shapes. Monochrome screens keep explicit labels and
-high-contrast rendering. No state depends on color alone.
+Model, voice dataset, recordings and dictionary data have their own upstream licenses. The Spanish generator records the voice/model-card and WikDict attribution in `SOURCE.txt`. See the [model card](https://huggingface.co/rhasspy/piper-voices/blob/main/es/es_MX/claude/high/MODEL_CARD) and [Piper project](https://github.com/OHF-Voice/piper1-gpl) for upstream details.
 
-The product name is PageScribe. The `fingerink.koplugin` install folder, update
-URL, internal settings, and gesture identifiers remain stable to preserve
-existing notes and upgrades. Do not install a second copy under a new folder.
+## Development and releases
 
-Quick drags and long-press drags both release the tray correctly. Its button
-targets follow the rendered tray at the current screen position. A new tap
-recovers from an interrupted drag instead of leaving the controls locked.
+Run `lua5.1 dictionary-audio-test.lua` for word normalization, bounded MediaPlayer playback, cleanup, translation choices, independent settings, speed persistence and the optional PageScribe settings dialog. Run `./scripts/package.sh` to build `dist/dictionary-audio.koplugin.zip`. CI validates Lua 5.1 behavior, Python syntax and package contents before automatic releases. Tests simulate JNI; actual sound quality and device playback require hardware checks.
 
-### Pen and highlight colors
+The updater replaces only the plugin folder. Audio packs and dictionary definitions stay under KOReader’s data directory.
 
-Both tools include an inline row of eight named color chips: Black, Blue, Red,
-Green, Purple, Orange, Pink and Yellow. A checkmark identifies the selected
-color. Pen and Highlight remember independent colors across books and restarts.
+## License and origin
 
-Each stroke stores its own color, so changing the palette affects new strokes.
-HTML notebook and PDF ink export preserve the selected colors. Existing
-handwriting retains its original appearance. Color screens use RGB ink and
-partial color refresh; monochrome screens show readable black ink while keeping
-the chosen colors in saved strokes and exports.
-
-### Native text highlights and optional finger drawing
-
-**Pen writes · Finger selects** is the default input mode, including on upgrade.
-Long-press a word with a finger and drag over a sentence to use KOReader's own
-text selection, highlights, notes and dictionary. The finger gesture stream is
-preserved; it does not create a freehand stroke. The pen can still write using
-the active tool. Finger contacts during a pen stroke are blocked until lifted.
-
-**Pen only** blocks fingers for palm rejection while keeping tray controls
-usable. **Finger draws** explicitly enables finger ink, instead of text
-selection. Choose Read to use normal reader gestures regardless of ink input.
-
-The freehand Highlight tool is now called **Marker**. Marker strokes remain
-page overlays; native text highlights remain KOReader's text annotations.
-The top-right **×** closes the tray, width/input/color rows together. Tap the
-handwriting icon to reopen it.
+AGPL-3.0, as distributed in the earlier repository; see [LICENSE](LICENSE). This repository preserves that development history. The shared updater originated in the PageScribe/Finger Ink development work. The preserved history also records the original Finger Ink source attribution; this plugin does not depend on its handwriting code.

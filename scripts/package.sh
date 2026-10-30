@@ -1,41 +1,15 @@
 #!/bin/sh
 set -eu
-
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 output_dir=${1:-"$repo_root/dist"}
+metadata_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' "$repo_root/dictionary-audio.koplugin/_meta.lua")
+test "$metadata_version" = "$(tr -d '\r\n' < "$repo_root/VERSION")"
 staging_dir=$(mktemp -d)
-archive_path="$output_dir/fingerink.koplugin.zip"
-temporary_archive="$staging_dir/fingerink.koplugin.zip"
-
-metadata_version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
-    "$repo_root/fingerink.koplugin/_meta.lua")
-version_file=$(tr -d '\r\n' < "$repo_root/VERSION")
-test -n "$metadata_version"
-test "$metadata_version" = "$version_file" || {
-    echo "VERSION ($version_file) does not match fingerink.koplugin/_meta.lua ($metadata_version)." >&2
-    exit 1
-}
-
-cleanup() {
-    rm -rf "$staging_dir"
-}
-trap cleanup EXIT INT TERM
-
-mkdir -p "$output_dir" "$staging_dir/fingerink.koplugin"
-for file in _meta.lua main.lua ink_bar.lua ink_capture.lua ink_pdf.lua \
-    ink_colors.lua ink_render.lua ink_refresh.lua ink_notebook.lua ink_store.lua ink_transform.lua pluginupdater.lua; do
-    cp "$repo_root/fingerink.koplugin/$file" \
-        "$staging_dir/fingerink.koplugin/$file"
+trap 'rm -rf "$staging_dir"' EXIT INT TERM
+mkdir -p "$output_dir" "$staging_dir/dictionary-audio.koplugin"
+for file in _meta.lua main.lua audio_index.lua audio_player.lua pluginupdater.lua LICENSE; do
+    cp "$repo_root/dictionary-audio.koplugin/$file" "$staging_dir/dictionary-audio.koplugin/$file"
 done
-
-(
-    cd "$staging_dir"
-    zip -qr "$temporary_archive" fingerink.koplugin
-)
-mv "$temporary_archive" "$archive_path"
-
-(
-    cd "$repo_root"
-    zip -qr "$output_dir/dictionary-audio.koplugin.zip" dictionary-audio.koplugin -i '*.lua'
-)
-echo "Created $archive_path and dictionary-audio.koplugin.zip"
+(cd "$staging_dir" && zip -qr dictionary-audio.koplugin.zip dictionary-audio.koplugin)
+mv "$staging_dir/dictionary-audio.koplugin.zip" "$output_dir/dictionary-audio.koplugin.zip"
+echo "Created $output_dir/dictionary-audio.koplugin.zip"

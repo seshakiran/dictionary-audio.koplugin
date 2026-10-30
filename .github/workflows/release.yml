@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: fingerink-release
+  group: dictionary-audio-release
   cancel-in-progress: false
 
 jobs:
@@ -41,8 +41,8 @@ jobs:
       - name: Read plugin version
         id: metadata
         run: |
-          version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
-            fingerink.koplugin/_meta.lua)
+          version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' \
+            dictionary-audio.koplugin/_meta.lua)
           test -n "$version"
           test "$version" = "$(tr -d '\r\n' < VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -69,7 +69,7 @@ jobs:
           VERSION: ${{ steps.metadata.outputs.version }}
           TARGET_SHA: ${{ steps.source.outputs.sha }}
         run: >-
-          gh release create "$TAG" dist/fingerink.koplugin.zip dist/dictionary-audio.koplugin.zip
+          gh release create "$TAG" dist/dictionary-audio.koplugin.zip
           --target "$TARGET_SHA"
-          --title "PageScribe $VERSION"
+          --title "Dictionary Audio $VERSION"
           --generate-notes

@@ -8,6 +8,9 @@ local _=require("gettext")
 local directory=debug.getinfo(1,"S").source:match("^@(.*/)")
 local Index=dofile(directory.."audio_index.lua")
 local Player=dofile(directory.."audio_player.lua")
+local updater=dofile(directory.."pluginupdater.lua").new{
+    repository="seshakiran/dictionary-audio.koplugin",branch="main",folder="dictionary-audio.koplugin",
+}
 local Audio=WidgetContainer:extend{name="dictionary_audio",is_doc_only=true}
 function Audio:init()
     self.ui.dictionary_audio=self
@@ -94,6 +97,7 @@ function Audio:addToMainMenu(items)
         {text=_("Spanish speech speed"),enabled_func=function() return self.spanish_enabled end,sub_item_table={
             self:rateItem(_("Normal"),1.0),self:rateItem(_("Slower"),0.85),self:rateItem(_("Very slow"),0.7),
         },help_text=_("Changes playback speed while preserving the voice's pitch. Applies to the next Spanish word; English playback stays normal.")},
+        updater:menuItem(),
     }}
 end
 function Audio:showSettings()
