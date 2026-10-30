@@ -1,3 +1,7 @@
+## 0.7.1
+
+- Refresh Undo availability after handwriting changes or page navigation without adding refreshes for ordinary pen samples.
+
 ## 0.7.0 — direct toolbar
 
 - Replace the wheel and SELECT step with Read, Pen, Highlight, and Erase buttons that apply on one tap.

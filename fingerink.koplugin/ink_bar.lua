@@ -151,6 +151,7 @@ end
 function InkBar:render()
     local d,p,info=self.dimen,self.palette,self:displayInfo()
     self.info=info
+    self.undo_available=self:canUndo()
     local kind=self.color_mode and BB.TYPE_BBRGB32 or Screen.bb:getType()
     local bb=BB.new(d.w,d.h,kind);self.surface=bb
     self:rect(bb,0,0,d.w,d.h,p.line,self:S(10))
@@ -183,7 +184,7 @@ function InkBar:render()
         text("selected_"..id,selected and _("✓ ACTIVE") or _("Tap to use"),9,selected,ink,x+3,107,72,20)
         text("tool_"..id,NAMES[id],12,true,ink,x+3,133,72,25)
     end
-    local actions={{id="undo",label=_("Undo"),enabled=self:canUndo()},
+    local actions={{id="undo",label=_("Undo"),enabled=self.undo_available},
         {id="note",label=_("Notes"),enabled=true},{id="settings",label=_("Settings"),enabled=true}}
     for i,action in ipairs(actions) do
         local x=12+(i-1)*114
@@ -195,6 +196,7 @@ function InkBar:render()
 end
 
 function InkBar:paintTo(bb)
+    if self.surface and self.undo_available~=self:canUndo() then self:update(false) end
     if not self.surface then self:render() end
     local d=self.dimen
     bb:blitFrom(self.surface,d.x,d.y,0,0,d.w,d.h)

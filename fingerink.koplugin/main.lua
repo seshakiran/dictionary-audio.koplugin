@@ -130,6 +130,10 @@ function FingerInk:onSaveSettings()
     else
         self.ui.doc_settings:saveSetting(SETTING_KEY, self.store.pages)
     end
+    -- Refresh the disabled Undo state only when availability changes. Keep
+    -- ordinary pen samples on the fast direct drawing path.
+    if self.bar and self.bar.expanded and self.bar.canUndo
+        and self.bar.undo_available~=self.bar:canUndo() then self.bar:update(true) end
 end
 
 --- Rotation and resize invalidate the bar's layout; rebuild it.

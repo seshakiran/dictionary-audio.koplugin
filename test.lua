@@ -371,6 +371,12 @@ do
         check("bounded integral rendering at DPI scale "..scale,paints>0,true)
         local surface=b.surface;b:paintTo(screen)
         check("unchanged menu reuses cached surface "..scale,b.surface,surface)
+        p.store={get=function() return {{n=1}} end}
+        b:paintTo(screen)
+        check("page ink updates cached Undo availability "..scale,b.undo_available,true)
+        p.store=nil
+        b:paintTo(screen)
+        check("empty page updates cached Undo availability "..scale,b.undo_available,false)
         b:setExpanded(false);b:paintTo(screen);b:onCloseWidget()
     end
     local Device=require("device")
