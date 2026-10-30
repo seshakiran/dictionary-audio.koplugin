@@ -74,19 +74,28 @@ Open:
 Top menu → More tools → Finger Ink
 ```
 
-A small circular status button always stays on the page, even if the old version's
-**Hide** setting was saved. It shows **READ / OFF**, **PEN / ON**, **MARK / ON**, or
-**ERASE / ON**. Tap it to open the radial tool wheel:
+A small status button always stays on the page, even if the old version's
+**Hide** setting was saved. It writes out **READ / OFF**, **PEN / ON**,
+**MARK / ON**, or **ERASE / ON**. Tap it to open the classic click-wheel panel.
 
-- **Pen**, **Mark**, **Erase** select the tool directly and enable drawing.
-- **Read** stops drawing so normal reading, selection and dictionary lookup work.
-- **Undo** removes the last stroke; **4 px** cycles 2, 4 and 7 pixel pen widths.
-- **Note** opens the current page's typed note.
-- **Close**, the wheel center, or a tap outside collapses the wheel. The status
-  button stays visible; tap it to open the wheel again.
+The top header is the **active mode**. The black list row is the **browsed
+choice**; browsing alone never changes tools. Rotate a finger around the ring,
+or tap its left/right arrows, to move the highlighted row. Press the center
+**SELECT** button to apply that choice:
+
+- **Pen**, **Highlighter**, **Eraser** select the tool and enable drawing.
+- **Read / select text** stops drawing for reading, text selection and dictionary lookup.
+- **Undo stroke** removes the last stroke; **Pen width** cycles 2, 4 and 7 pixels.
+- **Page note** opens the current page's typed note.
+- **Close controls**, the ring's **MENU** button, or a tap outside closes the
+  panel. The status button stays available to reopen it.
+- The ring's bottom **READ / WRITE** button stops or resumes the last drawing tool.
 
 Long-press and drag the collapsed status button to move it. Its position is saved.
-The **Open tool wheel** menu item and gesture shortcut also open it.
+The **Open tool wheel** menu item and gesture shortcut also open it. The panel
+is rendered into a bounded cached buffer, with integer pixel positions and
+measured text boxes at the current screen scale. Closing restores the page and
+requests a clean refresh to remove stale panel outlines.
 
 Drawing retains every distinct input point, merges overlapping brush stamps,
 and batches Android display posts at 30 Hz by default. A pen lift flushes the
@@ -177,44 +186,73 @@ remain outside it.
 ## Offline dictionaries and pronunciation on Android
 
 The optional `dictionary-audio.koplugin.zip` release asset adds **Hear English**
-and **Hear Spanish** to dictionary popups using KOReader's dictionary-button extension API, present
-in the inspected Viwoods build. It plays local recorded English headwords with
-Android MediaPlayer; there are no online calls or API keys. This pronounces the
-English lookup word for either English definitions or English–Spanish translations.
-**Hear Spanish** opens a scrollable list of the Spanish translations of the
-English word. Tap one to play its offline Latin American Spanish pronunciation,
-synthesized locally with eSpeak NG. These are synthetic clips, not human recordings.
-Neither button reads entire definitions. Not every English headword has a recording. Actual speaker output still requires device testing.
+and **Hear Spanish** to dictionary popups using KOReader's dictionary-button
+extension API, present in the inspected Viwoods build. Both play fully local
+clips through Android MediaPlayer, with no online calls or API keys.
 
-Install the audio plugin in `koreader/plugins/` and restart KOReader. Put an
-English–English dictionary and an English–Spanish dictionary in separate folders
-under `koreader/data/dict/`; preserve each dictionary's attribution and license.
-The prepared dictionaries use GCIDE (108,121 entries, GPLv3+) from KOReader's
-[official download catalog](https://github.com/koreader/koreader/blob/master/frontend/ui/data/dictionaries.lua)
-and [WikDict English–Spanish](https://www.wikdict.com/page/download)
-(67,225 entries, CC BY-SA 4.0).
+- English uses the original human-recorded WyabdcRealPeopleTTS audio. Its
+  coverage is smaller than the English definition dictionary.
+- Spanish uses **Piper es_MX-claude-high**, a neural Mexican Spanish voice.
+  The clips retain the model's 22,050 Hz, 16-bit output with lossless FLAC
+  compression. They are synthetic pronunciations, not human recordings.
+  This replaces the earlier low-quality eSpeak 8-bit/11 kHz pack.
+- **Hear Spanish** opens a scrollable list of the English word's translations.
+  Tap a Spanish term to hear it. Neither audio button reads whole definitions.
 
-Download the [WyabdcRealPeopleTTS recordings](https://stardict-4.sourceforge.net/index_en.php.html), then run:
+### Audio preferences
+
+Open **Top menu → Tools → More tools → Dictionary audio**:
+
+- **English pronunciation** independently shows/hides English audio.
+- **Spanish pronunciation** independently shows/hides Spanish audio. Turning it
+  off keeps English audio and Spanish dictionary text available.
+- **Spanish speech speed** offers **Normal**, **Slower (85%)**, and **Very slow
+  (70%)**. Slower is the default. Playback speed changes preserve pitch and apply
+  on the next Spanish clip; English remains at its normal speed.
+
+Settings persist across books and restarts. They do not require regenerating
+or reinstalling audio packs. Disabling a language stops its current clip.
+Speed control requires Android's PlaybackParams API (Android 6+), supported by
+the inspected Viwoods build. Physical playback and rendering still need tablet
+validation after each update; desktop tests do not reproduce the e-ink controller.
+
+### Dictionary data and reproducible audio
+
+Install the audio plugin in `koreader/plugins/` and restart KOReader. Put
+GCIDE and WikDict English–Spanish in separate folders under `koreader/data/dict/`.
+Preserve their attribution and licenses. GCIDE has 108,121 entries (GPLv3+), from
+KOReader's [official download catalog](https://github.com/koreader/koreader/blob/master/frontend/ui/data/dictionaries.lua).
+[WikDict English–Spanish](https://www.wikdict.com/page/download) has 67,225 entries
+(CC BY-SA 4.0).
+
+The audio packs are user data and are not bundled in plugin releases:
+
+```text
+koreader/data/dict/english-audio/english.pack
+koreader/data/dict/english-audio/english.tsv
+koreader/data/dict/spanish-neural-audio/spanish.pack
+koreader/data/dict/spanish-neural-audio/spanish.tsv
+koreader/data/dict/spanish-neural-audio/spanish-translations.tsv
+```
+
+Prepare the English recordings from the
+[WyabdcRealPeopleTTS download](https://stardict-4.sourceforge.net/index_en.php.html):
 
 ```sh
 python3 scripts/pack-english-audio.py WyabdcRealPeopleTTS.tar.bz2 english-audio
 ```
 
-Copy the resulting `english-audio` directory to `koreader/data/dict/english-audio/`.
-The packer validates WAV headers and preserves every recording's bytes; the
-plugin skips invalid source files and uses a TSV index and bounded file offsets, avoiding tens of thousands of
-small MTP transfers. Audio data is not distributed in plugin releases.
-
-Choose **Read**, then long-press an English word. Use the popup dictionary selector
-to switch between definitions and Spanish translations, and **Hear English** to
-play its available recording. Use Android's media volume for playback volume.
-
-To reproduce the Spanish pack with eSpeak NG installed:
+The old `scripts/pack-spanish-audio.py` creates the legacy eSpeak pack and its
+translation metadata. To replace those clips with the neural model, use an
+isolated Python environment with `piper-tts` and `soundfile` installed:
 
 ```sh
-python3 scripts/pack-spanish-audio.py stardict.idx stardict.dict spanish-audio
+python scripts/pack-spanish-neural.py spanish-audio es_MX-claude-high.onnx spanish-neural-audio
 ```
 
-Use the index and dictionary from WikDict English–Spanish. Copy `spanish-audio`
-under `koreader/data/dict/` too. The generator merges meanings for duplicate
-English headwords and stores each distinct Spanish translation only once.
+Download the model and its JSON configuration from
+[the Piper voice repository](https://huggingface.co/rhasspy/piper-voices/tree/main/es/es_MX/claude/high).
+The model card identifies the voice dataset license as Apache-2.0; Piper is
+GPL-3.0. Generation runs locally, preserves the original translation keys, and
+can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
+Use Android's media volume for playback volume.

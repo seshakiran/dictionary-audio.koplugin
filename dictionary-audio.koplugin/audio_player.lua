@@ -1,4 +1,4 @@
--- Android MediaPlayer plays a bounded WAV slice from one offline pack. No
+-- Android MediaPlayer plays a bounded audio slice from one offline pack. No
 -- external activity, network request, background service, or shell command.
 local Player = {}
 function Player.new(android,ffi)
@@ -14,7 +14,8 @@ function Player:stop()
     if not self.player then return end
     self.android.jni:context(self.android.app.activity.vm,function(jni) self:release(jni) end)
 end
-function Player:play(path,offset,length)
+function Player:play(path,offset,length,rate)
+    rate=rate or 1.0
     return self.android.jni:context(self.android.app.activity.vm,function(jni)
         local env=jni.env
         local refs={}
@@ -48,6 +49,14 @@ function Player:play(path,offset,length)
             jni:callVoidMethod(player,"setDataSource","(Ljava/io/FileDescriptor;JJ)V",fd,
                 self.ffi.new("jlong",offset),self.ffi.new("jlong",length));check()
             jni:callVoidMethod(player,"prepare","()V");check()
+            if rate~=1.0 then
+                local params=localRef(jni:callObjectMethod(player,"getPlaybackParams","()Landroid/media/PlaybackParams;"))
+                localRef(jni:callObjectMethod(params,"allowDefaults","()Landroid/media/PlaybackParams;"))
+                -- JNI variadic float arguments are promoted to C double, matching Lua numbers.
+                localRef(jni:callObjectMethod(params,"setSpeed","(F)Landroid/media/PlaybackParams;",rate))
+                localRef(jni:callObjectMethod(params,"setPitch","(F)Landroid/media/PlaybackParams;",1.0))
+                jni:callVoidMethod(player,"setPlaybackParams","(Landroid/media/PlaybackParams;)V",params);check()
+            end
             jni:callVoidMethod(player,"start","()V");check()
         end)
         if stream then jni:callVoidMethod(stream,"close","()V") end

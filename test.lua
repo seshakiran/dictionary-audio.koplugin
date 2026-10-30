@@ -232,15 +232,26 @@ package.preload["logger"] = function()
     return { warn = noop, info = noop, dbg = noop, err = noop }
 end
 
-package.preload["ui/font"] = function() return { getFace=function() return {} end } end
+package.preload["ui/font"] = function() return { getFace=function(_,name,size) return {size=size} end } end
 package.preload["ui/widget/textwidget"] = function()
     return { new=function(_,o)
-        o.getSize=function() return {w=#o.text*7,h=18} end
-        o.free=function() end; o.paintTo=function() end
+        o.getSize=function()
+            local scale=require("device").screen:scaleBySize(100)/100
+            local size=o.face.size or 14
+            return {w=math.min(o.max_width or 10000,#o.text*size*scale*.55),h=math.ceil(size*scale*1.45)}
+        end
+        o.free=function() end
+        o.paintTo=function(_,bb,x,y)
+            if bb.w then
+                local size=o.getSize()
+                assert(x%1==0 and y%1==0,"fractional glyph origin")
+                assert(x>=0 and y>=0 and x+math.ceil(size.w)<=bb.w and y+size.h<=bb.h,"glyph outside menu buffer")
+            end
+        end
         return o
     end }
 end
-require("device").screen.bb={paintRect=function() end}
+require("device").screen.bb={paintRect=function() end,getType=function() return 1 end}
 local manager=require("ui/uimanager")
 manager.scheduleIn=function() end
 manager.unschedule=function() end
@@ -266,66 +277,102 @@ end
 
 -- ------------------------------------------------- toolbar input forwarding
 
-section("permanent hub, radial wheel and input forwarding")
+section("click wheel: browse, confirm and bounded rendering")
 do
-    local Event = require("ui/event")
-    local UIManager = require("ui/uimanager")
-    local WidgetContainer = require("ui/widget/container/widgetcontainer")
-    local InkBar = require("ink_bar")
-    local log = {}
+    local Event=require("ui/event")
+    local UIManager=require("ui/uimanager")
+    local WidgetContainer=require("ui/widget/container/widgetcontainer")
+    local InkBar=require("ink_bar")
+    local Screen=require("device").screen
+    local log={}
     local Reader=WidgetContainer:extend{}
-    function Reader:onGesture() log[#log+1]="reader:gesture";return true end
-    function Reader:onKeyPress() log[#log+1]="reader:key";return true end
+    function Reader:onGesture() log[#log+1]="reader";return true end
     local Menu=WidgetContainer:extend{}
-    function Menu:onGesture() log[#log+1]="menu:closed";return true end
-    local Toast=WidgetContainer:extend{toast=true}
-    function Toast:onGesture() log[#log+1]="toast:gesture" end
-    local p={ drawing=false,eraser=false,highlighter=false,pen_width=4,ui={} }
+    function Menu:onGesture() log[#log+1]="menu";return true end
+    local p={drawing=false,eraser=false,highlighter=false,pen_width=4,ui={}}
+    function p:abortStroke() end
     function p:onFingerInkUndo() log[#log+1]="undo" end
     function p:setTool(tool) self.drawing=true;self.eraser=tool=="eraser";self.highlighter=tool=="highlight";self.bar:update(true) end
     function p:setDrawing(on) self.drawing=on;self.bar:update(true) end
     function p:setPenWidth(w) self.pen_width=w end
     function p:setBarPosition(x,y) self.bar_position={x=x,y=y} end
+    local reader,menu=Reader:new{},Menu:new{}
     local bar=InkBar:new{plugin=p};p.bar=bar
-    local reader,menu,toast=Reader:new{},Menu:new{},Toast:new{}
     UIManager._window_stack={{widget=reader},{widget=bar}}
-    local function tap(x,y)
-        log={};bar:handleEvent(Event:new("Gesture",{ges="tap",pos={x=x,y=y}}));return table.concat(log,",")
+    local function gesture(kind,x,y,start)
+        log={};bar:handleEvent(Event:new("Gesture",{ges=kind,pos={x=x,y=y},start_pos=start}));return table.concat(log,",")
     end
-    check("hub starts collapsed",bar.expanded,false)
-    check("hub clearly shows read mode",bar.state,"READ")
-    check("outside taps forward to reader",tap(10,10),"reader:gesture")
-    tap(bar.cx,bar.cy);check("tap opens radial wheel",bar.expanded,true)
-    for _,node in ipairs(bar.nodes) do
-        check("wheel node fits screen: "..node.id,node.x-bar.node_r>=0 and node.x+bar.node_r<=1000 and node.y-bar.node_r>=0 and node.y+bar.node_r<=1400,true)
-    end
-    local pen=bar.nodes[1];tap(pen.x,pen.y)
-    check("pen selection enables drawing",p.drawing,true)
-    check("tool selection collapses wheel",bar.expanded,false)
-    check("collapsed hub shows selected tool",bar.state,"PEN")
-    check("hub remains reachable after collapse",bar:contains(bar.cx,bar.cy),true)
-    tap(bar.cx,bar.cy);local marker=bar.nodes[2];tap(marker.x,marker.y)
-    check("marker is selected directly",p.highlighter,true)
-    check("hub updates marker state",bar.state,"MARK")
-    tap(bar.cx,bar.cy);local undo=bar.nodes[4];check("undo runs its action",tap(undo.x,undo.y),"undo")
-    check("undo keeps wheel open",bar.expanded,true)
-    local width=bar.nodes[6];tap(width.x,width.y);check("width cycles",p.pen_width,7)
-    local read=bar.nodes[7];tap(read.x,read.y);check("Read disables drawing",p.drawing,false)
-    tap(bar.cx,bar.cy);local close=bar.nodes[8];tap(close.x,close.y)
-    check("Close leaves hub visible",bar:contains(bar.cx,bar.cy),true)
-    tap(bar.cx,bar.cy);check("closed wheel reopens with tap",bar.expanded,true)
-    tap(10,10);check("outside tap closes expanded wheel",bar.expanded,false)
+    local function open() if not bar.expanded then gesture("tap",bar.cx,bar.cy) end end
+    check("hub starts in explicit READ OFF state",bar.state.." "..bar.subtitle,"READ OFF")
+    check("page taps are forwarded",gesture("tap",10,10),"reader")
+    open();check("hub tap opens click wheel",bar.expanded,true)
+    check("initial highlight follows active mode",bar.items[bar.focus].id,"read")
+    local before=bar.focus
+    gesture("tap",bar.cx+bar.wheel_r*.7,bar.cy)
+    check("right button browses next item",bar.focus,before+1)
+    check("browsing does not activate a tool",p.drawing,false)
+    bar.focus=1;bar:update(false)
+    gesture("tap",bar.cx,bar.cy)
+    check("center SELECT applies highlighted tool",p.drawing,true)
+    check("applied tool closes wheel",bar.expanded,false)
+    check("hub shows active PEN ON",bar.state.." "..bar.subtitle,"PEN ON")
+    open();bar.focus=2;bar:update(false)
+    check("header retains applied tool while browsing",bar.active_label,"WRITING: PEN")
+    gesture("tap",bar.cx,bar.cy)
+    check("center SELECT applies highlighter",p.highlighter,true)
+    open();gesture("tap",bar.cx,bar.cy+bar.wheel_r*.7)
+    check("bottom READ button stops writing",p.drawing,false)
+    check("header explicitly says ink off",bar.active_label,"READING: INK OFF")
+    gesture("tap",bar.cx,bar.cy+bar.wheel_r*.7)
+    check("bottom WRITE resumes prior tool",p.highlighter,true)
+    local initial=bar.focus
+    local start={x=bar.cx,y=bar.cy-bar.wheel_r*.7}
+    gesture("pan",bar.cx+bar.wheel_r*.7,bar.cy,start)
+    check("clockwise quarter-turn advances three detents",bar.focus,(initial-1+3)%8+1)
+    gesture("pan_release",bar.cx+bar.wheel_r*.7,bar.cy)
+    check("releasing rotation never applies selection",bar.expanded,true)
+    check("release clears rotating state",bar.rotating,false)
+    local active=p.highlighter
+    gesture("tap",bar.cx,bar.cy-bar.wheel_r*.7)
+    check("MENU closes without changing active tool",p.highlighter,active)
+    check("MENU leaves hub accessible",bar:contains(bar.cx,bar.cy),true)
+    open();gesture("tap",10,10);check("outside tap closes controls",bar.expanded,false)
     UIManager._window_stack={{widget=reader},{widget=menu},{widget=bar}}
-    check("page tap forwards to open menu",tap(10,10),"menu:closed")
-    check("window below identifies dialog",bar:windowBelow(),menu)
-    UIManager._window_stack={{widget=reader},{widget=bar},{widget=toast}}
-    check("toast is skipped by forwarding",bar:windowBelow(),reader)
+    check("page tap forwards to an open dialog",gesture("tap",10,10),"menu")
+    UIManager._window_stack={{widget=reader},{widget=bar}}
     local x,y=bar.cx,bar.cy
-    bar:handleEvent(Event:new("Gesture",{ges="hold",pos={x=x,y=y}}))
-    bar:handleEvent(Event:new("Gesture",{ges="hold_release",pos={x=x-80,y=y+90}}))
-    check("hold-drag saves a new hub position",p.bar_position.x~=nil,true)
-    check("moved hub hit testing follows position",bar:contains(x-80,y+90),true)
-    bar:activate("collapse");check("collapse can always be repeated",bar.expanded,false)
+    gesture("hold",x,y);gesture("hold_release",x-70,y+80)
+    check("moving the hub persists integer coordinates",p.bar_position.x%1==0 and p.bar_position.y%1==0,true)
+    -- Strict pixel buffer rejects the exact fractional-row bug from the old menu.
+    local BB=require("ffi/blitbuffer")
+    local old_new=BB.new
+    local paints=0
+    local function buffer(w,h)
+        return {w=w,h=h,free=function() end,fill=function() end,getType=function() return 1 end,
+            paintRect=function(_,px,py,pw,ph)
+                assert(px%1==0 and py%1==0 and pw%1==0 and ph%1==0,"fractional pixel")
+                assert(px>=0 and py>=0 and px+pw<=w and py+ph<=h,"painting outside private buffer")
+                paints=paints+1
+            end,
+            paintRoundedRect=function(self,px,py,pw,ph) self:paintRect(px,py,pw,ph) end,
+        }
+    end
+    BB.new=function(w,h) return buffer(w,h) end
+    local screen={blitFrom=function(_,surface,px,py,sx,sy,w,h)
+        assert(px%1==0 and py%1==0 and px>=0 and py>=0 and px+w<=Screen:getWidth() and py+h<=Screen:getHeight())
+        assert(surface.w==w and surface.h==h)
+    end}
+    local old_scale=Screen.scaleBySize
+    for _,scale in ipairs({1,1.75,2.5,3}) do
+        Screen.scaleBySize=function(_,v) return math.floor(v*scale+.5) end
+        local b=InkBar:new{plugin=p};p.bar=b;b:setExpanded(true)
+        b:paintTo(screen)
+        check("bounded integral rendering at DPI scale "..scale,paints>0,true)
+        local surface=b.surface;b:paintTo(screen)
+        check("unchanged menu reuses cached surface "..scale,b.surface,surface)
+        b:setExpanded(false);b:paintTo(screen);b:onCloseWidget()
+    end
+    Screen.scaleBySize=old_scale;BB.new=old_new
 end
 
 section("batched Android display posting")

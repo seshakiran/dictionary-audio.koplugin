@@ -1,3 +1,13 @@
+## 0.5.0 — classic click wheel and clear Spanish speech
+
+- Replace orbiting tool bubbles with a classic click-wheel panel: rotate/arrow to browse, center SELECT to commit.
+- Separate the active tool header from the browsed choice; use explicit ON/OFF status in the persistent launcher.
+- Render into a bounded cached buffer using integer coordinates, antialiased ring edges and measured text boxes.
+- Restore old/new panel bounds and perform a clean refresh on close.
+- Replace legacy Spanish clips with full-quality Piper neural voice data in a separate local pack.
+- Add independent English/Spanish pronunciation toggles and Normal/Slower/Very slow Spanish playback speeds with pitch preservation.
+- Validate bounds at multiple DPI scales and test persistence, visibility and native speed parameters.
+
 ## 0.4.0 — faster writing and permanent radial controls
 
 - Replace the removable toolbar with a permanent state hub and tap-to-open radial wheel.

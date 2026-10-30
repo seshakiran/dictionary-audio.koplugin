@@ -740,7 +740,7 @@ function FingerInk:addToMainMenu(menu_items)
                 text = _("Start drawing"),
                 enabled_func = function() return not self.drawing end,
                 callback = function() self:setDrawing(true) end,
-                help_text = _([[Tap the persistent status button to open the tool wheel. Choose Pen, Mark or Erase to write, and Read to turn pages or select text. Close collapses the wheel; the button stays visible.]]),
+                help_text = _([[Tap the persistent status button. Rotate around the click wheel, or tap its left/right buttons, to highlight an option. Press the center SELECT button to apply it. The top header shows the active tool. MENU closes the panel; the small status button stays visible.]]),
             },
             {
                 text = _("Open tool wheel"),

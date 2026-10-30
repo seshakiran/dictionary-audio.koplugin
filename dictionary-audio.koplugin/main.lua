@@ -12,17 +12,25 @@ local Audio=WidgetContainer:extend{name="dictionary_audio",is_doc_only=true}
 function Audio:init()
     self.root=DataStorage:getDataDir().."/data/dict/"
     self.indices={}
+    local legacy=G_reader_settings:readSetting("dictionary_audio_enabled")
+    self.english_enabled=G_reader_settings:readSetting("dictionary_audio_english_enabled")
+    self.spanish_enabled=G_reader_settings:readSetting("dictionary_audio_spanish_enabled")
+    if self.english_enabled==nil then self.english_enabled=legacy~=false end
+    if self.spanish_enabled==nil then self.spanish_enabled=legacy~=false end
+    self.spanish_rate=G_reader_settings:readSetting("dictionary_audio_spanish_rate") or 0.85
+    if self.spanish_rate~=1 and self.spanish_rate~=0.85 and self.spanish_rate~=0.7 then self.spanish_rate=0.85 end
+    self.ui.menu:registerToMainMenu(self)
     if not Device:isAndroid() or not self.ui.dictionary or not self.ui.dictionary.addToDictButtons then return end
     local android=require("android")
     self.player=Player.new(android,require("ffi"))
     self.ui.dictionary:addToDictButtons{
         id="offline_english_audio",text=_("Hear English"),menu_text=_("Offline English pronunciation"),
-        conditional=true,row_group="offline_audio",
+        conditional=true,row_group="offline_audio",show_func=function() return self.english_enabled end,
         callback=function(popup) self:pronounce(popup.lookupword or popup.word) end,
     }
     self.ui.dictionary:addToDictButtons{
         id="offline_spanish_audio",text=_("Hear Spanish"),menu_text=_("Offline Spanish pronunciation"),
-        conditional=true,row_group="offline_audio",
+        conditional=true,row_group="offline_audio",show_func=function() return self.spanish_enabled end,
         callback=function(popup) self:showSpanish(popup.lookupword or popup.word) end,
     }
 end
@@ -30,19 +38,21 @@ function Audio:pronounce(word)
     self:play("english",word)
 end
 function Audio:play(language,word)
-    local path=self.root..language.."-audio/"..language
+    if (language=="english" and self.english_enabled==false) or (language=="spanish" and self.spanish_enabled==false) then return end
+    local path=self.root..(language=="spanish" and "spanish-neural-audio/spanish" or "english-audio/english")
     if not self.indices[language] then
         self.indices[language]=Index.read(path..".tsv")
         if not self.indices[language] then self:notify(_("Offline audio pack not found: ")..language);return end
     end
     local entry=Index.find(self.indices[language],word)
     if not entry then self:notify(_("No offline recording for this word."));return end
-    local ok,err=self.player:play(path..".pack",entry[1],entry[2])
-    if not ok then self:notify(tostring(err)) end
+    local ok,err=self.player:play(path..".pack",entry[1],entry[2],language=="spanish" and (self.spanish_rate or 0.85) or 1.0)
+    if not ok then self:notify(tostring(err)) else self.playing_language=language end
 end
 function Audio:showSpanish(word)
+    if self.spanish_enabled==false then return end
     if not self.translations then
-        self.translations=Index.translations(self.root.."spanish-audio/spanish-translations.tsv")
+        self.translations=Index.translations(self.root.."spanish-neural-audio/spanish-translations.tsv")
         if not self.translations then self:notify(_("Spanish audio pack not found."));return end
     end
     local choices=self.translations[tostring(word or ""):lower()]
@@ -60,5 +70,30 @@ function Audio:showSpanish(word)
 end
 
 function Audio:notify(text) UIManager:show(Notification:new{text=text}) end
+function Audio:rateItem(label,rate)
+    return {text=label,radio=true,checked_func=function() return self.spanish_rate==rate end,
+        callback=function()
+            self.spanish_rate=rate
+            G_reader_settings:saveSetting("dictionary_audio_spanish_rate",rate)
+        end}
+end
+function Audio:languageItem(label,language)
+    local field=language.."_enabled"
+    return {text=label,checked_func=function() return self[field] end,
+        callback=function()
+            self[field]=not self[field]
+            G_reader_settings:saveSetting("dictionary_audio_"..field,self[field])
+            if not self[field] and self.playing_language==language and self.player then self.player:stop() end
+        end}
+end
+function Audio:addToMainMenu(items)
+    items.dictionary_audio={text=_("Dictionary audio"),sorting_hint="more_tools",sub_item_table={
+        self:languageItem(_("English pronunciation"),"english"),
+        self:languageItem(_("Spanish pronunciation"),"spanish"),
+        {text=_("Spanish speech speed"),enabled_func=function() return self.spanish_enabled end,sub_item_table={
+            self:rateItem(_("Normal"),1.0),self:rateItem(_("Slower"),0.85),self:rateItem(_("Very slow"),0.7),
+        },help_text=_("Changes playback speed while preserving the voice's pitch. Applies to the next Spanish word; English playback stays normal.")},
+    }}
+end
 function Audio:onCloseDocument() if self.player then self.player:stop() end end
 return Audio
