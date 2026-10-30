@@ -4,10 +4,7 @@ English pronunciation recordings and Spanish pronunciation for KOReader dictiona
 
 ## Feature video
 
-[![Watch the feature video](docs/media/video-poster.jpg)](https://github.com/seshakiran/dictionary-audio.koplugin/releases/download/v0.4.0/pagescribe-dictionary-audio-walkthrough.mp4)
-
-[**Watch the video with sound**](https://github.com/seshakiran/dictionary-audio.koplugin/releases/download/v0.4.0/pagescribe-dictionary-audio-walkthrough.mp4)
-
+https://github.com/user-attachments/assets/561f65a5-9c4f-4087-a0ba-2a357c53295f
 
 ## Install the plugin
 
