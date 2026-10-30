@@ -608,6 +608,7 @@ end
 function FingerInk:setPenWidth(w)
     self.pen_width = w
     G_reader_settings:saveSetting("fingerink_pen_width", w)
+    if self.bar then self.bar:update(true) end
 end
 
 function FingerInk:setBarStyle(style)
