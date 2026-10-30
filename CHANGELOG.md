@@ -1,3 +1,11 @@
+## 0.10.0 — pen and highlighter colors
+
+- Add eight inline color chips with names and selected checkmarks for both tools.
+- Persist independent Pen and Highlight colors and store color per stroke.
+- Preserve RGB through live drawing, stroke replay, HTML notebooks and PDF annotations.
+- Group PDF annotations by width, tool and color; preserve older ink unchanged.
+- Keep ink legible on monochrome screens and use partial refresh on color screens.
+
 ## 0.9.2 — reachable launcher position
 
 - Start the handwriting launcher halfway down the right edge, clear of KOReader's progress bar.

@@ -10,6 +10,7 @@ local UIManager=require("ui/uimanager")
 local WidgetContainer=require("ui/widget/container/widgetcontainer")
 local _=require("gettext")
 local Screen=Device.screen
+local Colors=require("ink_colors")
 local InkBar=WidgetContainer:extend{side="right"}
 local INPUT={onGesture=true,onKeyPress=true,onKeyRepeat=true,onKeyRelease=true}
 local floor=math.floor
@@ -75,7 +76,7 @@ end
 function InkBar:init()
     self.base_scale=Screen:scaleBySize(100)/100
     self.compact_scale=math.min(self.base_scale,1.5)
-    self.expanded_scale=math.min(self.base_scale,(Screen:getWidth()-8)/540,(Screen:getHeight()-8)/92)
+    self.expanded_scale=math.min(self.base_scale,(Screen:getWidth()-8)/540,(Screen:getHeight()-8)/134)
     self.scale=self.compact_scale
     self.tools={"read","pen","highlight","eraser"}
     self.color_mode=not not (Device.hasColorScreen and Device:hasColorScreen() and BB.ColorRGB32 and BB.TYPE_BBRGB32)
@@ -103,7 +104,7 @@ function InkBar:activeId()
 end
 function InkBar:traySize()
     return self.expanded and self:S(540) or self.hub_w,
-        self.expanded and self:S(self:activeId()=="read" and 48 or 92) or self.hub_h
+        self.expanded and self:S(self:activeId()=="read" and 48 or self:activeId()=="eraser" and 92 or 134) or self.hub_h
 end
 function InkBar:clampPosition(x,y)
     local w,h=self:traySize()
@@ -195,6 +196,12 @@ function InkBar:buttons()
         add("pen_only",_("Pen only"),344,52,82,36,p.stylus_only,Device.input and Device.input.registerStylusCallback~=nil)
         add("touch",_("Pen + finger"),428,52,108,36,not p.stylus_only)
     end
+    if active=="pen" or active=="highlight" then
+        local selected=active=="highlight" and (p.highlighter_color or "yellow") or (p.pen_color or "black")
+        for i,entry in ipairs(Colors.list) do
+            add("color_"..entry.id,entry.name,4+(i-1)*67,96,65,34,selected==entry.id)
+        end
+    end
     return list
 end
 -- Draw the launcher as a pen nib and handwriting, without font glyphs/assets.
@@ -244,13 +251,23 @@ function InkBar:render()
         text("context",info.id=="eraser" and _("Stroke") or info.name,11,true,active,4,52,48,36)
     end
     for _,button in ipairs(self:buttons()) do
-        local color=p[button.id] or active
+        local color_id=button.id:match("^color_(.+)")
+        local palette_color=color_id and Colors.get(color_id).rgb
+        local color=palette_color and self.color_mode and palette_color or p[button.id] or active
         box(button.x,button.y,button.w,button.h,button.selected and color or p.line,3)
         if not button.selected then box(button.x+1,button.y+1,button.w-2,button.h-2,button.enabled and p.panel or p.soft,2) end
+        if palette_color then
+            -- Named chips remain understandable on monochrome screens.
+            local swatch=self.color_mode and palette_color or p.ink
+            box(button.x+3,button.y+4,button.w-6,3,swatch)
+        end
         local label=(button.selected and "✓ " or "")..button.label
-        local size=button.id:match("^width_") and 10.5 or (button.id=="pen_only" or button.id=="touch") and 11 or 12
+        local size=color_id and 10 or button.id:match("^width_") and 10.5 or (button.id=="pen_only" or button.id=="touch") and 11 or 12
+        local ink=button.selected and p.white or p.ink
+        if button.selected and palette_color and self.color_mode
+            and palette_color[1]*0.299+palette_color[2]*0.587+palette_color[3]*0.114>140 then ink=p.ink end
         text(button.id,label,size,button.selected,
-            button.selected and p.white or p.ink,button.x+2,button.y+1,button.w-4,button.h-2)
+            ink,button.x+2,button.y+1,button.w-4,button.h-2)
     end
 end
 
@@ -270,6 +287,7 @@ function InkBar:activate(id)
         if p.ui.dictionary_audio then p.ui.dictionary_audio:showSettings()
         else p:notify(_("Enable Dictionary audio in the plugin manager, then restart KOReader.")) end
     elseif id=="pen_only" or id=="touch" then p:setInputMode(id=="pen_only")
+    elseif id:match("^color_") then p:setInkColor(self:activeId(),id:match("^color_(.+)"))
     elseif id:match("^width_") then
         local width=tonumber(id:match("%d+"))
         if self:activeId()=="highlight" then p:setHighlighterWidth(width) else p:setPenWidth(width) end

@@ -1,11 +1,25 @@
 -- Merge overlapping square brush stamps into rectangles along the dominant
 -- axis. Same coverage, fewer calls into the blitter, especially for markers.
 local floor, ceil, abs = math.floor, math.ceil, math.abs
+local Colors=require("ink_colors")
+local BB=require("ffi/blitbuffer")
+local Device=require("device")
 local Render = {}
+local colors={}
+function Render.color(stroke,fallback)
+    if not stroke.color then return fallback end -- Preserve legacy ink exactly.
+    if not (Device.hasColorScreen and Device:hasColorScreen() and BB.ColorRGB32) then
+        return BB.COLOR_BLACK -- Keep all ink legible on monochrome readers.
+    end
+    local entry=Colors.get(stroke.color,stroke.tool=="highlight" and "yellow" or "black")
+    if not colors[entry.id] then colors[entry.id]=BB.ColorRGB32(entry.rgb[1],entry.rgb[2],entry.rgb[3],255) end
+    return colors[entry.id]
+end
 local function rect(bb, x, y, w, h, color, highlight)
-    if not highlight then bb:paintRect(x, y, w, h, color); return end
+    local paint=bb.paintRectRGB32 or bb.paintRect
+    if not highlight then paint(bb,x, y, w, h, color); return end
     for py = y + (-y % 4), y + h - 1, 4 do
-        for px = x + (-x % 4), x + w - 1, 4 do bb:paintRect(px, py, 1, 1, color) end
+        for px = x + (-x % 4), x + w - 1, 4 do paint(bb,px, py, 1, 1, color) end
     end
 end
 function Render.segment(bb, x0, y0, x1, y1, w, color, highlight)
@@ -42,6 +56,7 @@ function Render.segment(bb, x0, y0, x1, y1, w, color, highlight)
     else rect(bb, minor-half, low, w, high-low, color, highlight) end
 end
 function Render.stroke(bb, s, ox, oy, color)
+    color=Render.color(s,color)
     if s.n < 1 then return end
     if s.n == 1 then
         Render.segment(bb, ox+s[1],oy+s[2],ox+s[1],oy+s[2],s.w,color,s.tool=="highlight")

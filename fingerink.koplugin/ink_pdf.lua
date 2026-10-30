@@ -16,8 +16,9 @@ local logger = require("logger")
 local _ = require("gettext")
 
 local InkPdf = {}
+local Colors=require("ink_colors")
 
--- Black, matching the ink the plugin paints on screen.
+-- Default for legacy pen strokes without a saved color.
 local INK_RGB = { r = 0, g = 0, b = 0 }
 local OPACITY = 1.0
 local OLD_BUILD = _("PDF ink export requires KOReader 2026.07 or newer. Update KOReader, restart it, then try again.")
@@ -60,8 +61,8 @@ end
 Strokes bucketed by line width, because border width belongs to the annotation
 rather than to each ink list within it.
 
-A page of handwriting is one or two buckets, so this writes a couple of
-annotation objects per page instead of one per stroke.
+Strokes sharing width, tool and color use one annotation object rather than
+one object per stroke.
 ]]
 local function bucketByWidth(list)
     local widths, buckets, skipped, reasons = {}, {}, 0, {}
@@ -76,12 +77,13 @@ local function bucketByWidth(list)
             -- Rounded, so strokes drawn at fractionally different zoom levels
             -- still share a bucket instead of each getting its own annotation.
             local w = math.floor(s.w / s.t.z * 100 + 0.5) / 100
-            local key = tostring(w) .. ":" .. (s.tool or "pen")
+            local key = tostring(w) .. ":" .. (s.tool or "pen") .. ":" .. (s.color and Colors.get(s.color,s.tool=="highlight" and "yellow" or "black").id or "legacy")
             local bucket = buckets[key]
             if not bucket then
                 bucket = {}
                 buckets[key] = bucket
-                widths[#widths + 1] = { w = w, key = key, highlight = s.tool == "highlight" }
+                widths[#widths + 1] = { w = w, key = key, highlight = s.tool == "highlight",
+                    color = s.color and Colors.pdf(s.color,s.tool=="highlight" and "yellow" or "black") }
             end
             bucket[#bucket + 1] = pts
         end
@@ -104,7 +106,7 @@ local function addPage(doc, store, page)
     end
     for i = 1, #widths do
         local w = widths[i]
-        pg:addInkAnnotation(buckets[w.key], w.highlight and { r = 1, g = 0.85, b = 0 } or INK_RGB,
+        pg:addInkAnnotation(buckets[w.key], w.color or (w.highlight and { r = 1, g = 0.85, b = 0 } or INK_RGB),
             w.w, w.highlight and 0.25 or OPACITY)
     end
     pg:close()

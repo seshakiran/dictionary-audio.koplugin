@@ -23,7 +23,7 @@ trap cleanup EXIT INT TERM
 
 mkdir -p "$output_dir" "$staging_dir/fingerink.koplugin"
 for file in _meta.lua main.lua ink_bar.lua ink_capture.lua ink_pdf.lua \
-    ink_render.lua ink_refresh.lua ink_notebook.lua ink_store.lua ink_transform.lua pluginupdater.lua; do
+    ink_colors.lua ink_render.lua ink_refresh.lua ink_notebook.lua ink_store.lua ink_transform.lua pluginupdater.lua; do
     cp "$repo_root/fingerink.koplugin/$file" \
         "$staging_dir/fingerink.koplugin/$file"
 done

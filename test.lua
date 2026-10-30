@@ -298,6 +298,9 @@ do
     function p:setDrawing(on) self.drawing=on;self.bar:update(true) end
     function p:setPenWidth(w) self.pen_width=w end
     function p:setHighlighterWidth(w) self.highlighter_width=w end
+    function p:setInkColor(tool,id)
+        self[tool=="highlight" and "highlighter_color" or "pen_color"]=id;self.bar:update(true)
+    end
     function p:setInputMode(on) self.stylus_only=on;self.bar:update(true) end
     p.ui.dictionary_audio={showSettings=function() log[#log+1]="audio" end}
     require("device").input={registerStylusCallback=function() end}
@@ -324,11 +327,16 @@ do
     check("reading tray is one slim row",bar.dimen.h,48)
     tap("pen")
     check("one tap immediately activates pen",p.drawing and not p.highlighter and not p.eraser,true)
-    check("pen choices open inline",bar.expanded and bar.dimen.h==92,true)
+    check("pen choices open inline",bar.expanded and bar.dimen.h==134,true)
     for _,width in ipairs({2,4,7,9,10,12}) do
         tap("width_"..width);check("inline pen width "..width,p.pen_width,width)
     end
     tap("width_7");check("inline width changes pen immediately",p.pen_width,7)
+    tap("color_red");check("pen color applies inline",p.pen_color,"red")
+    tap("highlight");tap("color_green")
+    check("highlight color applies independently",p.highlighter_color,"green")
+    tap("pen");check("switching tools preserves pen color",p.pen_color,"red")
+
     tap("pen_only");check("inline input mode changes immediately",p.stylus_only,true)
     tap("touch")
     tap("highlight");check("one tap immediately activates highlight",p.highlighter,true)
@@ -642,6 +650,20 @@ do
     check("marker remains translucent", doc.annots[2].opacity, 0.25)
     check("marker exports in yellow", doc.annots[2].color.r, 1)
 
+    store=Store.new()
+    for _,id in ipairs({"red","blue","red"}) do
+        local s=stroke(4,T1,0,0,20,20);s.color=id;store:add(3,s)
+    end
+    local green=stroke(4,T1,0,0,20,20);green.tool="highlight";green.color="green";store:add(3,green)
+    doc=fakeDoc();InkPdf.save({document=doc},store,{3})
+    local Colors=require("ink_colors")
+    check("PDF separates equal-width ink by color",#doc.annots,3)
+    check("PDF groups matching red ink",#doc.annots[1].strokes,2)
+    check("PDF retains red channel",doc.annots[1].color.r,Colors.pdf("red").r)
+    check("PDF retains blue channel",doc.annots[2].color.b,Colors.pdf("blue").b)
+    check("PDF retains marker color",doc.annots[3].color.g,Colors.pdf("green").g)
+    check("PDF colored marker remains translucent",doc.annots[3].opacity,0.25)
+
     -- Strokes from a view with no page mapping stay put rather than landing wrong.
     store = Store.new()
     store:add(3, stroke(4, T1, 0, 0, 10, 10))
@@ -732,6 +754,12 @@ do
     check("HTML preserves original canvas", html:find('viewBox="0 0 600 800"', 1, true) ~= nil, true)
     check("HTML includes handwriting points", html:find('10,20 200,20', 1, true) ~= nil, true)
     check("HTML includes highlight opacity", html:find('opacity="0.25"', 1, true) ~= nil, true)
+    store:add(8,{n=2,w=7,color="purple",sw=600,sh=800,10,10,20,20})
+    store:add(8,{n=1,w=24,tool="highlight",color="pink",10,10})
+    local colored_html=Notebook.html("book",store,notes)
+    check("HTML retains pen stroke color",colored_html:find('stroke="'..require("ink_colors").hex("purple")..'"',1,true)~=nil,true)
+    check("HTML retains marker color",colored_html:find('fill="'..require("ink_colors").hex("pink")..'"',1,true)~=nil,true)
+
     local path = os.tmpname()
     check("notebook export succeeds", not not Notebook.export(path, 'book', store, notes), true)
     local f = assert(io.open(path, 'rb'))
@@ -861,6 +889,18 @@ do
     p.highlighter=true;p:startStroke(400,400)
     check("native marker uses selected inline width",p.stroke.w,36)
     p:abortStroke();p.highlighter=false
+    p:setInkColor("pen","blue");p:setInkColor("highlight","pink")
+    check("pen color preference persists",settings.fingerink_pen_color,"blue")
+    check("marker color preference persists",settings.fingerink_highlighter_color,"pink")
+    p.highlighter=false;p:startStroke(400,400)
+    check("stroke saves chosen pen color",p.stroke.color,"blue")
+    local captured=p.stroke;p:abortStroke();p:setInkColor("pen","red")
+    check("later color choice cannot recolor old stroke",captured.color,"blue")
+    p.highlighter=true;p:startStroke(400,400)
+    check("stroke saves independent marker color",p.stroke.color,"pink")
+    p:abortStroke();p.highlighter=false
+    p:setInkColor("pen",'red"><script>')
+    check("invalid palette IDs cannot be saved",p.pen_color,"red")
     p:setInputMode(false)
     check("inline mode permits pen and finger",p.stylus_only,false)
     p:setInputMode(true)
@@ -870,6 +910,29 @@ do
     UIManager.show=old_show
 
 
+end
+
+section("colored ink rendering and monochrome fallback")
+do
+    local Render=require("ink_render")
+    local Colors=require("ink_colors")
+    local BB,Device=require("ffi/blitbuffer"),require("device")
+    local old_rgb,old_has=BB.ColorRGB32,Device.hasColorScreen
+    BB.ColorRGB32=function(r,g,b,a) return {r=r,g=g,b=b,a=a} end
+    Device.hasColorScreen=function() return true end
+    local paint_color
+    local bb={paintRect=function() error("gray painter loses RGB") end,
+        paintRectRGB32=function(_,x,y,w,h,c) paint_color=c end}
+    local s={n=2,w=4,color="orange",10,10,30,10}
+    Render.stroke(bb,s,0,0,BB.COLOR_BLACK)
+    check("RGB stroke keeps red channel",paint_color.r,Colors.get("orange").rgb[1])
+    check("RGB stroke keeps green channel",paint_color.g,Colors.get("orange").rgb[2])
+    Device.hasColorScreen=function() return false end
+    check("monochrome ink stays readable",Render.color(s,BB.COLOR_BLACK),BB.COLOR_BLACK)
+    check("monochrome does not discard saved hue",s.color,"orange")
+    check("legacy ink keeps original painter color",Render.color({tool="highlight"},"legacy"),"legacy")
+    check("palette exposes eight colors",#Colors.list,8)
+    BB.ColorRGB32,Device.hasColorScreen=old_rgb,old_has
 end
 
 section("brush merging preserves stroke coverage")

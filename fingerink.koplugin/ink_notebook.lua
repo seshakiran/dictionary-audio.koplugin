@@ -1,5 +1,6 @@
 -- Portable, offline notebook: typed notes plus SVG handwriting, without book text.
 local Notebook = {}
+local Colors=require("ink_colors")
 
 local function escape(s)
     return (tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;")
@@ -26,7 +27,7 @@ function Notebook.html(book, store, notes)
         'svg{width:100%;max-height:80vh;border:1px solid #aaa}pre{white-space:pre-wrap}',
         'section{break-inside:avoid;margin:2rem 0}</style>',
         '<h1>' .. escape(book) .. '</h1>',
-        '<p>Finger Ink notebook. Drawings are page overlays; book text and native KOReader highlights are not included.</p>',
+        '<p>PageScribe notebook. Drawings are page overlays; book text and native KOReader highlights are not included.</p>',
     }
     for _, page in ipairs(Notebook.pages(store, notes)) do
         local list = store:get(page) or {}
@@ -48,7 +49,8 @@ function Notebook.html(book, store, notes)
             for _, s in ipairs(group) do
                 local points = {}
                 for i = 1, s.n * 2, 2 do points[#points + 1] = string.format('%g,%g', s[i], s[i + 1]) end
-                local color = s.tool == "highlight" and '#d5aa00' or 'black'
+                local color = s.color and Colors.hex(s.color,s.tool=="highlight" and "yellow" or "black")
+                    or (s.tool == "highlight" and '#d5aa00' or 'black')
                 local opacity = s.tool == "highlight" and '0.25' or '1'
                 if s.n == 1 then
                     out[#out + 1] = string.format('<circle cx="%g" cy="%g" r="%g" fill="%s" opacity="%s"/>', s[1], s[2], s.w / 2, color, opacity)

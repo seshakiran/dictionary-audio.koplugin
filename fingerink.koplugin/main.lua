@@ -25,6 +25,7 @@ local Capture = require("ink_capture")
 local InkBar = require("ink_bar")
 local InkPdf = require("ink_pdf")
 local Render = require("ink_render")
+local Colors = require("ink_colors")
 local Refresh = require("ink_refresh")
 local Store = require("ink_store")
 local Transform = require("ink_transform")
@@ -62,6 +63,8 @@ function FingerInk:init()
     self.live_refresh = Refresh.new(UIManager, Screen, true, self.refresh_hz)
     self.pen_width = G_reader_settings:readSetting("fingerink_pen_width") or PEN_MEDIUM
     self.highlighter_width = G_reader_settings:readSetting("fingerink_highlighter_width") or 24
+    self.pen_color = Colors.get(G_reader_settings:readSetting("fingerink_pen_color"),"black").id
+    self.highlighter_color = Colors.get(G_reader_settings:readSetting("fingerink_highlighter_color"),"yellow").id
     self.live_fast = G_reader_settings:readSetting("fingerink_live_fast") ~= false
     self.bar_side = G_reader_settings:readSetting("fingerink_bar_side") or "right"
     self.bar_style = G_reader_settings:readSetting("fingerink_bar_style") == "icons"
@@ -456,6 +459,7 @@ function FingerInk:startStroke(x, y)
     local highlight = self.highlighter or (self.processing_stylus and self.stylus_tool == 3)
     self.stroke = { n = 1, w = highlight and (self.highlighter_width or 24) or self.pen_width,
         tool = highlight and "highlight" or "pen",
+        color = highlight and (self.highlighter_color or "yellow") or (self.pen_color or "black"),
         sw = Screen:getWidth(), sh = Screen:getHeight(), x, y }
     Render.stroke(Screen.bb, self.stroke, 0, 0, INK)
     self:refreshBox(x, y, x, y, self.stroke.w)
@@ -471,7 +475,7 @@ function FingerInk:addPoint(x, y)
     s[i + 2] = y
     s.n = s.n + 1
 
-    Render.segment(Screen.bb, px, py, x, y, s.w, INK, s.tool == "highlight")
+    Render.segment(Screen.bb, px, py, x, y, s.w, Render.color(s,INK), s.tool == "highlight")
     self:refreshBox(px, py, x, y, s.w)
 end
 
@@ -541,7 +545,7 @@ function FingerInk:refreshBox(x0, y0, x1, y1, w)
     if bw <= 0 or bh <= 0 then return end
 
     if not self.live_refresh then self.live_refresh = Refresh.new(UIManager, Screen, self.live_fast, self.refresh_hz or 30) end
-    self.live_refresh.fast = self.live_fast
+    self.live_refresh.fast = self.live_fast and not (Device.hasColorScreen and Device:hasColorScreen())
     self.live_refresh:add(x, y, bw, bh)
 end
 
@@ -609,6 +613,15 @@ end
 function FingerInk:setPenWidth(w)
     self.pen_width = w
     G_reader_settings:saveSetting("fingerink_pen_width", w)
+    if self.bar then self.bar:update(true) end
+end
+
+function FingerInk:setInkColor(tool,id)
+    if (tool~="pen" and tool~="highlight") or not Colors.valid(id) then return end
+    self:abortStroke()
+    local field=tool=="highlight" and "highlighter_color" or "pen_color"
+    self[field]=id
+    G_reader_settings:saveSetting("fingerink_"..field,id)
     if self.bar then self.bar:update(true) end
 end
 

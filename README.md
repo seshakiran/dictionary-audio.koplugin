@@ -265,7 +265,7 @@ GPL-3.0. Generation runs locally, preserves the original translation keys, and
 can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
 Use Android's media volume for playback volume.
 
-### PageScribe 0.9 controls
+### PageScribe 0.10 controls
 
 The small draggable tray keeps tool options inline. Active state is visible;
 there are no pending choices or tool-setting dialogs. Native pens can draw, highlight, erase, and tap
@@ -284,3 +284,15 @@ existing notes and upgrades. Do not install a second copy under a new folder.
 Quick drags and long-press drags both release the tray correctly. Its button
 targets follow the rendered tray at the current screen position. A new tap
 recovers from an interrupted drag instead of leaving the controls locked.
+
+### Pen and highlight colors
+
+Both tools include an inline row of eight named color chips: Black, Blue, Red,
+Green, Purple, Orange, Pink and Yellow. A checkmark identifies the selected
+color. Pen and Highlight remember independent colors across books and restarts.
+
+Each stroke stores its own color, so changing the palette affects new strokes.
+HTML notebook and PDF ink export preserve the selected colors. Existing
+handwriting retains its original appearance. Color screens use RGB ink and
+partial color refresh; monochrome screens show readable black ink while keeping
+the chosen colors in saved strokes and exports.
