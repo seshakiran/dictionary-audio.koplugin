@@ -2,17 +2,11 @@
 
 English pronunciation recordings and Spanish pronunciation for KOReader dictionary popups on Android. **Dictionary Audio installs and works independently of PageScribe.** When both plugins are installed, PageScribe provides a convenient Audio shortcut.
 
-## Watch the features
+## Feature video
 
-[![PageScribe and Dictionary Audio feature walkthrough](docs/media/showcase-preview.gif)](https://github.com/seshakiran/dictionary-audio.koplugin/releases/download/v0.4.0/pagescribe-dictionary-audio-walkthrough.mp4)
+[![Watch the feature video](docs/media/video-poster.jpg)](https://github.com/seshakiran/dictionary-audio.koplugin/releases/download/v0.4.0/pagescribe-dictionary-audio-walkthrough.mp4)
 
-[**Watch the 48-second 1080p video with sound**](https://github.com/seshakiran/dictionary-audio.koplugin/releases/download/v0.4.0/pagescribe-dictionary-audio-walkthrough.mp4) · [Screenshot gallery](docs/media/README.md) · [Remotion source](https://github.com/seshakiran/pagescribe.koplugin/tree/main/media-demo)
-
-Rendered color UI previews with illustrative book/dictionary content—not tablet captures or real-time performance footage. The video includes a synthetic Spanish pronunciation example.
-
-| Dictionary lookup | Language and speed controls |
-| --- | --- |
-| ![Feature preview](docs/media/05-dictionary-audio.png) | ![Feature preview](docs/media/06-audio-settings.png) |
+[**Watch the video with sound**](https://github.com/seshakiran/dictionary-audio.koplugin/releases/download/v0.4.0/pagescribe-dictionary-audio-walkthrough.mp4)
 
 
 ## Install the plugin
