@@ -343,6 +343,24 @@ do
     local x,y=bar.cx,bar.cy
     gesture("hold",x,y);gesture("hold_release",x-70,y+80)
     check("moving the hub persists integer coordinates",p.bar_position.x%1==0 and p.bar_position.y%1==0,true)
+    p.drawing=true;p.highlighter=false;p.eraser=false;p.stylus_only=true
+    bar.focus=2
+    local info=bar:displayInfo()
+    check("now screen identifies applied pen",info.now.name,"Pen")
+    check("now screen reports writing state",info.now.status,"WRITING ON")
+    check("now screen identifies input and width",info.now.detail,"4 px · Pen only")
+    check("candidate remains explicitly inactive",info.choice.badge,"NOT ACTIVE")
+    check("SELECT explains exact pending change",info.choice.action,"SELECT: Switch to Highlighter")
+    check("next option is named",info.next,"Eraser")
+    bar.focus=1
+    check("same-tool choice says already active",bar:displayInfo().choice.badge,"ACTIVE NOW")
+    p.drawing=false;bar.focus=4
+    check("reading status explicitly disables ink",bar:displayInfo().now.status,"WRITING OFF")
+    bar.focus=6
+    check("width action names next thickness",bar:displayInfo().choice.action,"SELECT: Set pen to 7 px")
+    p.store={get=function() return {} end};p.currentPage=function() return 1 end;bar.focus=5
+    check("empty-page undo is unavailable",bar:displayInfo().choice.available,false)
+    p.store=nil
     -- Strict pixel buffer rejects the exact fractional-row bug from the old menu.
     local BB=require("ffi/blitbuffer")
     local old_new=BB.new
@@ -372,6 +390,30 @@ do
         check("unchanged menu reuses cached surface "..scale,b.surface,surface)
         b:setExpanded(false);b:paintTo(screen);b:onCloseWidget()
     end
+    local Device=require("device")
+    local old_color,old_rgb,old_type=Device.hasColorScreen,BB.ColorRGB32,BB.TYPE_BBRGB32
+    Device.hasColorScreen=function() return true end
+    BB.ColorRGB32=function(r,g,b,a) return {r=r,g=g,b=b,a=a} end
+    BB.TYPE_BBRGB32=99
+    local rgb_paints=0
+    BB.new=function(w,h,kind)
+        assert(kind==99,"color display must use RGB canvas")
+        local b=buffer(w,h)
+        b.paintRectRGB32=function(self,x,y,w,h,c)
+            assert(c.r and c.g and c.b and c.a==255,"opaque RGB color required")
+            rgb_paints=rgb_paints+1;self:paintRect(x,y,w,h)
+        end
+        b.paintRoundedRectRGB32=b.paintRectRGB32
+        b.colorblitFromRGB32=function(self,source,x,y,sx,sy,w,h,c) self.last_glyph=c end
+        return b
+    end
+    local colored=InkBar:new{plugin=p};colored:setExpanded(true);colored:paintTo(screen)
+    check("color display uses RGB paint path",rgb_paints>0,true)
+    local target=colored:textTarget(colored.surface)
+    target:colorblitFrom(nil,0,0,0,0,1,1,"blue glyph")
+    check("glyph adapter preserves RGB target and color",colored.surface.last_glyph,"blue glyph")
+    colored:onCloseWidget()
+    Device.hasColorScreen,BB.ColorRGB32,BB.TYPE_BBRGB32=old_color,old_rgb,old_type
     Screen.scaleBySize=old_scale;BB.new=old_new
 end
 
@@ -720,6 +762,13 @@ do
     p:onStylusEvent({slot=4,id=-1,tool=1})
     check("native pen release saves stroke", #p.store:get(2), 1)
     check("native pen state cleared", p.pen_down, false)
+    check("pen can enter wheel without drawing",p:onStylusEvent({slot=4,id=8,tool=1,x=50,y=500}),false)
+    check("pen wheel interaction cannot create ink",p.stroke,nil)
+    check("pen wheel release reaches gesture detector",p:onStylusEvent({slot=4,id=-1,tool=1}),false)
+    p:onStylusEvent({slot=4,id=9,tool=3,x=400,y=400})
+    check("native highlighter tool makes marker stroke",p.stroke.tool,"highlight")
+    p:onStylusEvent({slot=4,id=-1,tool=3})
+
 end
 
 section("brush merging preserves stroke coverage")

@@ -1,7 +1,7 @@
 local _ = require("gettext")
 return {
     name = "fingerink",
-    fullname = _("Finger Ink"),
-    version = "0.5.0",
-    description = _([[Write, mark, and manage page notes in KOReader.]]),
+    fullname = _("PageScribe"),
+    version = "0.6.0",
+    description = _([[Write, highlight, and manage book notes with a pen or touch.]]),
 }

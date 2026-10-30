@@ -1,5 +1,5 @@
 --[[--
-Finger Ink — draw on book pages with a finger.
+PageScribe — draw on book pages with a finger.
 
 The side toolbar is the control surface: it is a normal widget sitting above
 ReaderUI, and the capture handler passes through any contact that starts inside
@@ -85,19 +85,19 @@ end
 function FingerInk:registerDispatcher()
     Dispatcher:registerAction("fingerink_toggle", {
         category = "none", event = "FingerInkToggle", reader = true,
-        title = _("Finger Ink: toggle drawing"),
+        title = _("PageScribe: toggle drawing"),
     })
     Dispatcher:registerAction("fingerink_eraser", {
         category = "none", event = "FingerInkEraser", reader = true,
-        title = _("Finger Ink: toggle eraser"),
+        title = _("PageScribe: toggle eraser"),
     })
     Dispatcher:registerAction("fingerink_undo", {
         category = "none", event = "FingerInkUndo", reader = true,
-        title = _("Finger Ink: undo stroke"),
+        title = _("PageScribe: undo stroke"),
     })
     Dispatcher:registerAction("fingerink_bar", {
         category = "none", event = "FingerInkBar", reader = true,
-        title = _("Finger Ink: toggle toolbar"),
+        title = _("PageScribe: toggle toolbar"),
     })
 end
 
@@ -237,7 +237,7 @@ function FingerInk:setDrawing(on)
             function(slot) return self:onStylusEvent(slot) end)
         if not ok then
             logger.warn("FingerInk: no gesture_detector to hook")
-            self:notify(_("Finger Ink: cannot hook touch input"))
+            self:notify(_("PageScribe: cannot hook touch input"))
             return
         end
         self.drawing = true
@@ -573,7 +573,7 @@ local function skippedInkMessage(reasons)
         elseif only == "page_boundary" then
             return _("A stroke crossed the gap between pages in continuous view. Redraw it without crossing the page boundary.")
         elseif only == "legacy" then
-            return _("This ink has no saved page-position data, usually because it was drawn with an older Finger Ink version. Update the plugin, then redraw those strokes.")
+            return _("This ink has no saved page-position data, usually because it was drawn with an older PageScribe version. Update the plugin, then redraw those strokes.")
         end
     end
     return _("Some ink could not be mapped safely to a PDF page. Use normal page view with reflow and rotation off, then redraw the skipped strokes without crossing a page boundary.")
@@ -717,7 +717,7 @@ end
 
 function FingerInk:addToMainMenu(menu_items)
     menu_items.fingerink = {
-        text = _("Finger Ink"),
+        text = _("PageScribe"),
         sorting_hint = "more_tools",
         sub_item_table = {
             { text = _("Stylus only (ignore fingers while drawing)"),
@@ -802,7 +802,7 @@ function FingerInk:addToMainMenu(menu_items)
                 callback = function()
                     self:saveInk({ self:currentPage() })
                 end,
-                help_text = _([[Writes the ink as a real PDF ink annotation, so it shows up in any PDF reader rather than only here. It stops being Finger Ink's, so it can no longer be undone or erased with the eraser — clear it in a PDF editor instead.]]),
+                help_text = _([[Writes the ink as a real PDF ink annotation, so it shows up in any PDF reader rather than only here. It stops being PageScribe's, so it can no longer be undone or erased with the eraser — clear it in a PDF editor instead.]]),
             },
             {
                 text = _("Save whole document into PDF"),

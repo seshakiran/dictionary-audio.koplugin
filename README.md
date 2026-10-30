@@ -1,9 +1,10 @@
-# Finger Ink — Viwoods notebook fork
+# PageScribe — pen and touch notes for KOReader
 
 Fork of [SMUsamaShah/fingerink.koplugin](https://github.com/SMUsamaShah/fingerink.koplugin), under the original AGPL-3.0 license.
 
-Draw handwritten notes on KOReader pages with your finger. Designed for touch
-e-readers without a stylus, including Kindle Paperwhite.
+Write and highlight directly on KOReader book pages with a pen or finger.
+Includes native Android stylus capture for Viwoods, palm blocking, page notes,
+and notebook export. Finger drawing also supports touch devices such as Kindle Paperwhite.
 
 https://github.com/user-attachments/assets/c9c4f543-999a-47e8-8ae3-d14274997e5f
 
@@ -20,7 +21,7 @@ Your ink is saved per page in KOReader's sidecar data, where it can be undone
 or erased. For PDFs, you can optionally export the ink as native PDF
 annotations so it is visible in Acrobat, Preview, and other PDF readers.
 
-PDF export is one-way: after export, Finger Ink can no longer undo or erase
+PDF export is one-way: after export, PageScribe can no longer undo or erase
 those strokes.
 
 ## Requirements
@@ -32,8 +33,8 @@ those strokes.
 
 ### AppStore or Storefront
 
-Finger Ink is structured for KOReader's AppStore and Storefront plugins. Find
-**Finger Ink** in the store and install it, then restart KOReader. The store can
+PageScribe keeps the original `fingerink` identity for compatible store updates.
+A store may still list it as **Finger Ink** until its catalog is updated. The store can
 compare the stable GitHub release with the version in `_meta.lua` and offer
 future updates.
 
@@ -61,9 +62,9 @@ Restart KOReader after installing.
 No gesture setup is required. You do not need to assign or disable KOReader's
 long-press gesture.
 
-If Finger Ink is disabled in KOReader's plugin manager, enable it and restart
-KOReader. Then open a document and use **Top menu → More tools → Finger Ink**.
-The optional `Finger Ink: ...` actions exposed to KOReader's gesture manager
+If PageScribe is disabled in KOReader's plugin manager, enable it and restart
+KOReader. Then open a document and use **Top menu → More tools → PageScribe**.
+The optional `PageScribe: ...` actions exposed to KOReader's gesture manager
 are shortcuts only; the plugin works without assigning any of them.
 
 ## Use
@@ -71,7 +72,7 @@ are shortcuts only; the plugin works without assigning any of them.
 Open:
 
 ```text
-Top menu → More tools → Finger Ink
+Top menu → More tools → PageScribe
 ```
 
 A small status button always stays on the page, even if the old version's
@@ -109,7 +110,7 @@ including reported eraser and highlighter tools. Android must expose the pen typ
 ### Viwoods AiPaper Mini
 
 1. Copy `fingerink.koplugin` into internal storage at `koreader/plugins/` using OpenMTP.
-2. Restart KOReader and open a book, then **More tools → Finger Ink → Start drawing**.
+2. Restart KOReader and open a book, then **More tools → PageScribe → Start drawing**.
 3. Test the pen first. If it draws, enable **Stylus only (ignore fingers while drawing)**.
    This ignores every finger contact outside the toolbar while drawing, including
    multi-touch palms. Choose **Read** in the wheel to turn pages or select text; the status button remains usable.
@@ -126,8 +127,8 @@ behavior, PDF writes, and latency must still be checked on the tablet.
 
 Other handwriting plugins can also register stylus callbacks or gesture hooks.
 Disable **Stylus annotations** and **Ink Away** in KOReader's plugin manager and
-restart before testing Finger Ink alone. Existing notes from those plugins are
-not migrated or deleted. Finger Ink restores a previous stylus callback when drawing stops.
+restart before testing PageScribe alone. Existing notes from those plugins are
+not migrated or deleted. PageScribe restores a previous stylus callback when drawing stops.
 
 ### Manage written notes
 
@@ -148,7 +149,7 @@ not migrated or deleted. Finger Ink restores a previous stylus callback when dra
 
 ## Export ink into a PDF
 
-From the Finger Ink menu, choose:
+From the PageScribe menu, choose:
 
 - **Save this page into PDF**
 - **Save whole document into PDF**
@@ -166,7 +167,7 @@ Those strokes remain in the sidecar and the plugin explains what to correct.
   Finger mode has no palm rejection.
 - Changing layout after writing can move text while leaving ink behind,
   especially in reflowable books such as EPUBs.
-- Exported PDF ink cannot be edited by Finger Ink.
+- Exported PDF ink cannot be edited by PageScribe.
 - Fast refresh may look grainy or leave temporary ghosting.
 
 ## Documentation
@@ -256,3 +257,23 @@ The model card identifies the voice dataset license as Apache-2.0; Piper is
 GPL-3.0. Generation runs locally, preserves the original translation keys, and
 can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
 Use Android's media volume for playback volume.
+
+### PageScribe 0.6 controls
+
+The display separates **NOW USING** (the applied tool, writing on/off, pen width,
+and Pen only / Pen + finger input) from **CHOOSE NEXT** (the pending choice, what
+it does, and the exact SELECT action). Browsing never changes the active tool.
+Rotate around the wheel or tap Prev/Next to browse, then press SELECT to apply.
+MENU closes the panel; the small status button remains available.
+
+Native pens can draw, highlight, erase, and operate the wheel. Pen-only mode
+blocks finger ink and page gestures while still allowing the controls. Pen
+compatibility depends on KOReader exposing the device's native stylus events.
+
+Color screens automatically use a blue, amber, coral, and teal palette with
+RGB-preserving text and shapes. Monochrome screens keep explicit labels and
+high-contrast rendering. No state depends on color alone.
+
+The product name is PageScribe. The `fingerink.koplugin` install folder, update
+URL, internal settings, and gesture identifiers remain stable to preserve
+existing notes and upgrades. Do not install a second copy under a new folder.

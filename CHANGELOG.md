@@ -1,3 +1,12 @@
+## 0.6.0 — PageScribe
+
+- Rename the visible product to PageScribe while preserving install folder, settings, notes, gesture IDs and update URLs.
+- Add an iPod-style NOW USING display with applied tool, ink on/off, width and input mode.
+- Separate pending choices, ACTIVE NOW / NOT ACTIVE badges, descriptions, exact SELECT actions and named previous/next options.
+- Add an automatic color-screen palette with RGB-preserving text and shapes; retain explicit high-contrast monochrome states.
+- Verify native pen writing, highlighting, palm blocking and pen control gestures alongside touch.
+- Keep unavailable undo actions explicit and preserve the persistent launcher.
+
 ## 0.5.0 — classic click wheel and clear Spanish speech
 
 - Replace orbiting tool bubbles with a classic click-wheel panel: rotate/arrow to browse, center SELECT to commit.

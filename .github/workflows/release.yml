@@ -71,5 +71,5 @@ jobs:
         run: >-
           gh release create "$TAG" dist/fingerink.koplugin.zip dist/dictionary-audio.koplugin.zip
           --target "$TARGET_SHA"
-          --title "Finger Ink $VERSION"
+          --title "PageScribe $VERSION"
           --generate-notes
