@@ -61,6 +61,7 @@ function FingerInk:init()
     self.refresh_hz = G_reader_settings:readSetting("fingerink_refresh_hz") or 30
     self.live_refresh = Refresh.new(UIManager, Screen, true, self.refresh_hz)
     self.pen_width = G_reader_settings:readSetting("fingerink_pen_width") or PEN_MEDIUM
+    self.highlighter_width = G_reader_settings:readSetting("fingerink_highlighter_width") or 24
     self.live_fast = G_reader_settings:readSetting("fingerink_live_fast") ~= false
     self.bar_side = G_reader_settings:readSetting("fingerink_bar_side") or "right"
     self.bar_style = G_reader_settings:readSetting("fingerink_bar_style") == "icons"
@@ -453,7 +454,7 @@ end
 function FingerInk:startStroke(x, y)
     self.stroke_page = self:currentPage()
     local highlight = self.highlighter or (self.processing_stylus and self.stylus_tool == 3)
-    self.stroke = { n = 1, w = highlight and 24 or self.pen_width,
+    self.stroke = { n = 1, w = highlight and (self.highlighter_width or 24) or self.pen_width,
         tool = highlight and "highlight" or "pen",
         sw = Screen:getWidth(), sh = Screen:getHeight(), x, y }
     Render.stroke(Screen.bb, self.stroke, 0, 0, INK)
@@ -611,6 +612,19 @@ function FingerInk:setPenWidth(w)
     if self.bar then self.bar:update(true) end
 end
 
+function FingerInk:setHighlighterWidth(width)
+    if width~=12 and width~=24 and width~=36 then return end
+    self.highlighter_width=width
+    G_reader_settings:saveSetting("fingerink_highlighter_width",width)
+    if self.bar then self.bar:update(true) end
+end
+function FingerInk:setInputMode(pen_only)
+    if pen_only and not (Device.input and Device.input.registerStylusCallback) then return end
+    self:abortStroke();self:resetContacts();self.stylus_only=pen_only
+    G_reader_settings:saveSetting("fingerink_stylus_only",pen_only)
+    if self.bar then self.bar:update(true) end
+end
+
 function FingerInk:setBarStyle(style)
     self.bar_style = style == "icons" and "icons" or "text"
     G_reader_settings:saveSetting("fingerink_bar_style", self.bar_style)
@@ -720,41 +734,10 @@ function FingerInk:exportNotebook()
         or T(_("Could not export notebook: %1"), tostring(err)))
 end
 
--- Keep direct tool buttons visible while writing. Settings are ordinary modal
--- dialogs, so capture yields until they close without changing the chosen tool.
+-- Keep tool choices inline in the tray; no separate settings dialog.
 function FingerInk:showToolbarSettings()
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local dialog
-    local function choose(callback)
-        return function() UIManager:close(dialog);callback();self:showToolbarSettings() end
-    end
-    local function selected(on,label) return (on and "✓ " or "")..label end
-    local has_pen=Device.input and Device.input.registerStylusCallback~=nil
-    local widths={}
-    for _,value in ipairs({2,4,7}) do
-        local width=value
-        widths[#widths+1]={text=selected(self.pen_width==width,width.." px"),callback=choose(function() self:setPenWidth(width) end)}
-    end
-    dialog=ButtonDialog:new{title=_("PageScribe settings"),buttons={
-        {{text=_("Pen width"),enabled=false}},widths,
-        {{text=selected(self.stylus_only,_("Pen only")),enabled=has_pen,callback=choose(function()
-            self:abortStroke();self:resetContacts();self.stylus_only=true
-            G_reader_settings:saveSetting("fingerink_stylus_only",true)
-            if self.bar then self.bar:update(true) end
-        end)},
-        {text=selected(not self.stylus_only,_("Pen + finger")),callback=choose(function()
-            self:abortStroke();self:resetContacts();self.stylus_only=false
-            G_reader_settings:saveSetting("fingerink_stylus_only",false)
-            if self.bar then self.bar:update(true) end
-        end)}},
-        {{text=_("Dictionary audio"),callback=function()
-            UIManager:close(dialog)
-            if self.ui.dictionary_audio and self.ui.dictionary_audio.showSettings then self.ui.dictionary_audio:showSettings()
-            else self:notify(_("Enable the Dictionary audio plugin, then restart KOReader.")) end
-        end}},
-        {{text=_("Done"),callback=function() UIManager:close(dialog);if self.bar then self.bar:setExpanded(true) end end}},
-    }}
-    UIManager:show(dialog)
+    if not self.bar then self:setBarShown(true) end
+    self.bar:setExpanded(true)
 end
 function FingerInk:openNotes()
     local ButtonDialog=require("ui/widget/buttondialog")
@@ -806,7 +789,7 @@ function FingerInk:addToMainMenu(menu_items)
                 text = _("Start drawing"),
                 enabled_func = function() return not self.drawing end,
                 callback = function() self:setDrawing(true) end,
-                help_text = _([[Tap the persistent status tab. Tap Read, Pen, Highlight, or Erase to activate it immediately. The filled button with a checkmark is active. Undo, Notes, and Settings are separate. Hide collapses the toolbar; the labeled status tab always reopens it.]]),
+                help_text = _([[Tap the small status tab. Read, Pen, Highlight, and Erase activate immediately. Width and input options appear inline below the selected tool. Drag anywhere on the tray to move it. Audio opens dictionary pronunciation settings; ‹ collapses the tray.]]),
             },
             {
                 text = _("Open toolbar"),

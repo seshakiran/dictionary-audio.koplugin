@@ -1,3 +1,11 @@
+## 0.8.0 — compact draggable tray
+
+- Shrink the closed tray to 48×30 logical pixels and the open strip to 380×40, with a 38-pixel inline row only while writing. Cap UI scale to keep it compact on high-DPI readers.
+- Drag either the tab or expanded tray directly, without holding first; follow each movement, restore the page and persist the final position.
+- Put pen width, independent highlighter widths and pen/finger choices inline instead of in a settings dialog.
+- Add a direct Audio tray action while preserving Dictionary audio as its own main-menu item.
+- Preserve existing settings, notes, color palette and native pen handling.
+
 ## 0.7.1
 
 - Refresh Undo availability after handwriting changes or page navigation without adding refreshes for ordinary pen samples.

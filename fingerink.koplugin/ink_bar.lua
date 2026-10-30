@@ -32,7 +32,7 @@ local NAMES={read=_("Read"),pen=_("Pen"),highlight=_("Highlight"),eraser=_("Eras
 function InkBar:displayInfo()
     local p,id=self.plugin,self:activeId()
     local input=p.stylus_only and _("Pen only") or _("Pen + finger")
-    local width=tostring(id=="highlight" and 24 or p.pen_width or 4).." px"
+    local width=tostring(id=="highlight" and (p.highlighter_width or 24) or p.pen_width or 4).." px"
     local help={read=_("Turn pages or hold a word to look it up."),
         pen=_("Write directly on the book page."),
         highlight=_("Draw a broad highlight over the page."),
@@ -74,14 +74,14 @@ end
 
 function InkBar:init()
     self.base_scale=Screen:scaleBySize(100)/100
-    self.scale=math.min(self.base_scale,(Screen:getWidth()-16)/360,(Screen:getHeight()-16)/254)
+    self.scale=math.min(self.base_scale,1.5,(Screen:getWidth()-8)/380,(Screen:getHeight()-8)/78)
     self.tools={"read","pen","highlight","eraser"}
     self.color_mode=not not (Device.hasColorScreen and Device:hasColorScreen() and BB.ColorRGB32 and BB.TYPE_BBRGB32)
     self.palette=THEMES[self.color_mode and "color" or "mono"];self.color_cache={}
     self.expanded=false;self.labels={}
-    self.hub_w,self.hub_h=self:S(164),self:S(52)
+    self.hub_w,self.hub_h=self:S(48),self:S(30)
     self.position=self.position or {x=self.side=="left" and 8 or Screen:getWidth()-self.hub_w-8,
-        y=round(Screen:getHeight()/2-self.hub_h/2)}
+        y=Screen:getHeight()-self.hub_h-8}
     self:layout();self:update(false)
 end
 function InkBar:S(value) return math.max(1,round(value*self.scale)) end
@@ -89,17 +89,17 @@ function InkBar:activeId()
     local p=self.plugin
     return not p.drawing and "read" or p.eraser and "eraser" or p.highlighter and "highlight" or "pen"
 end
+function InkBar:traySize()
+    return self.expanded and self:S(380) or self.hub_w,
+        self.expanded and self:S(self:activeId()=="read" and 40 or 78) or self.hub_h
+end
 function InkBar:clampPosition(x,y)
-    return round(clamp(x,2,Screen:getWidth()-self.hub_w-2)),round(clamp(y,2,Screen:getHeight()-self.hub_h-2))
+    local w,h=self:traySize()
+    return round(clamp(x,2,Screen:getWidth()-w-2)),round(clamp(y,2,Screen:getHeight()-h-2))
 end
 function InkBar:layout()
     local x,y=self:clampPosition(self.position.x,self.position.y)
-    local w,h=self.hub_w,self.hub_h
-    if self.expanded then
-        w,h=self:S(360),self:S(254)
-        x=round(clamp(x+self.hub_w/2-w/2,4,Screen:getWidth()-w-4))
-        y=round(clamp(y+self.hub_h/2-h/2,4,Screen:getHeight()-h-4))
-    end
+    local w,h=self:traySize()
     self.dimen=Geom:new{x=x,y=y,w=w,h=h}
     self.cx,self.cy=x+round(w/2),y+round(h/2)
 end
@@ -125,12 +125,19 @@ function InkBar:freeSurface()
     if self.surface then self.surface:free();self.surface=nil end
 end
 function InkBar:update(refresh)
-    local p=self.plugin
+    local old=self.dimen and copy(self.dimen)
     local info=self:displayInfo()
     self.state=info.name;self.subtitle=info.detail;self.active_label=info.status
+    self:layout()
     for _,label in pairs(self.labels) do label:free() end
     self.labels={};self:freeSurface()
-    if refresh then UIManager:setDirty(self,"ui",self.dimen) end
+    if refresh then
+        local damage=old and union(old,self.dimen) or self.dimen
+        if old and (old.x~=self.dimen.x or old.y~=self.dimen.y or old.h~=self.dimen.h) then
+            UIManager:setDirty(self.plugin.ui,"ui",damage)
+        end
+        UIManager:setDirty(self,"ui",damage)
+    end
 end
 -- Every glyph is measured and centered inside its own box at the actual DPI.
 function InkBar:text(bb,key,text,size,bold,color,x,y,w,h,align)
@@ -148,51 +155,66 @@ function InkBar:text(bb,key,text,size,bold,color,x,y,w,h,align)
     local ty=y+round((h-dim.h)/2)
     t:paintTo(bb,round(tx),round(ty))
 end
+-- All rendered buttons and hit targets use the same geometry.
+function InkBar:buttons()
+    local active,p=self:activeId(),self.plugin
+    local list={}
+    local function add(id,label,x,y,w,h,selected,enabled)
+        list[#list+1]={id=id,label=label,x=x,y=y,w=w,h=h,selected=selected,enabled=enabled~=false}
+    end
+    if not self.expanded then return list end
+    add("read",_("Read"),24,4,40,32,active=="read")
+    add("pen",_("Pen"),66,4,40,32,active=="pen")
+    add("highlight",_("Highlight"),108,4,64,32,active=="highlight")
+    add("eraser",_("Erase"),174,4,48,32,active=="eraser")
+    add("undo",_("Undo"),224,4,38,32,false,self:canUndo())
+    add("note",_("Notes"),264,4,40,32)
+    add("audio",_("Audio"),306,4,44,32)
+    add("collapse","‹",352,4,24,32)
+    if active~="read" then
+        local widths=active=="highlight" and {12,24,36} or {2,4,7}
+        if active~="eraser" then
+            local current=active=="highlight" and (p.highlighter_width or 24) or p.pen_width
+            for i,w in ipairs(widths) do add("width_"..w,tostring(w).." px",58+(i-1)*44,44,42,30,current==w) end
+        end
+        add("pen_only",_("Pen only"),196,44,82,30,p.stylus_only,Device.input and Device.input.registerStylusCallback~=nil)
+        add("touch",_("Pen + finger"),280,44,96,30,not p.stylus_only)
+    end
+    return list
+end
 function InkBar:render()
     local d,p,info=self.dimen,self.palette,self:displayInfo()
-    self.info=info
-    self.undo_available=self:canUndo()
-    local kind=self.color_mode and BB.TYPE_BBRGB32 or Screen.bb:getType()
-    local bb=BB.new(d.w,d.h,kind);self.surface=bb
-    self:rect(bb,0,0,d.w,d.h,p.line,self:S(10))
+    self.info=info;self.undo_available=self:canUndo()
+    local bb=BB.new(d.w,d.h,self.color_mode and BB.TYPE_BBRGB32 or Screen.bb:getType());self.surface=bb
+    self:rect(bb,0,0,d.w,d.h,p.line,self:S(5))
     local edge=self:S(1)
-    self:rect(bb,edge,edge,d.w-2*edge,d.h-2*edge,p.shell,self:S(9))
+    self:rect(bb,edge,edge,d.w-2*edge,d.h-2*edge,p.shell,self:S(4))
     local function box(x,y,w,h,color,radius)
         self:rect(bb,self:S(x),self:S(y),self:S(w),self:S(h),color,radius and self:S(radius))
     end
-    local function text(key,value,size,bold,color,x,y,w,h,align)
-        self:text(self:textTarget(bb),key,value,size,bold,self:color(color),self:S(x),self:S(y),self:S(w),self:S(h),align)
+    local function text(key,value,size,bold,color,x,y,w,h)
+        self:text(self:textTarget(bb),key,value,size,bold,self:color(color),self:S(x),self:S(y),self:S(w),self:S(h))
     end
     local active=p[info.id]
     if not self.expanded then
-        box(2,2,160,48,active,8)
-        text("hub",info.status.." ▸",13,true,p.white,8,5,148,23)
-        text("hub_detail",info.detail,10,false,p.white,8,29,148,16)
+        box(2,2,44,26,active,3)
+        local label=info.id=="highlight" and _("Mark") or info.name
+        text("hub",label.." ▸",10,true,p.white,3,3,42,24)
         return
     end
-    text("title",_("PAGESCRIBE"),11,true,p.ink,12,12,190,24,"left")
-    box(274,10,74,28,p.line,5);box(275,11,72,26,p.panel,4)
-    text("collapse",_("Hide ▸"),11,true,p.ink,277,11,68,26)
-    text("status",info.status.." · "..info.detail,13,true,active,12,45,336,24,"left")
-    text("help",info.help,11,false,p.muted,12,72,336,20,"left")
-    for i,id in ipairs(self.tools) do
-        local x=12+(i-1)*86
-        local selected=id==info.id
-        box(x,101,78,66,selected and p[id] or p.line,6)
-        if not selected then box(x+1,102,76,64,p.panel,5) end
-        local ink=selected and p.white or p.ink
-        text("selected_"..id,selected and _("✓ ACTIVE") or _("Tap to use"),9,selected,ink,x+3,107,72,20)
-        text("tool_"..id,NAMES[id],12,true,ink,x+3,133,72,25)
+    text("drag","⠿",15,true,p.muted,3,4,18,32)
+    if info.id~="read" then
+        box(4,40,372,1,p.line)
+        text("context",info.id=="eraser" and _("Stroke") or info.name,9,true,active,4,44,52,30)
     end
-    local actions={{id="undo",label=_("Undo"),enabled=self.undo_available},
-        {id="note",label=_("Notes"),enabled=true},{id="settings",label=_("Settings"),enabled=true}}
-    for i,action in ipairs(actions) do
-        local x=12+(i-1)*114
-        box(x,180,108,40,p.line,5);box(x+1,181,106,38,action.enabled and p.panel or p.soft,4)
-        text(action.id,action.label,12,action.enabled,action.enabled and p.ink or p.muted,x+4,185,100,30)
-        if not action.enabled then text("no_undo",_("No ink"),9,false,p.muted,x+4,222,100,16) end
+    for _,button in ipairs(self:buttons()) do
+        local color=p[button.id] or active
+        box(button.x,button.y,button.w,button.h,button.selected and color or p.line,3)
+        if not button.selected then box(button.x+1,button.y+1,button.w-2,button.h-2,button.enabled and p.panel or p.soft,2) end
+        local label=(button.selected and "✓ " or "")..button.label
+        text(button.id,label,button.id=="highlight" and 9 or 9.5,button.selected,
+            button.selected and p.white or p.ink,button.x+2,button.y+1,button.w-4,button.h-2)
     end
-    text("hint",_("Tap a tool to use it immediately"),10,false,p.muted,118,229,230,17)
 end
 
 function InkBar:paintTo(bb)
@@ -206,42 +228,66 @@ function InkBar:activate(id)
     if id=="collapse" then self:setExpanded(false)
     elseif id=="undo" then if self:canUndo() then p:onFingerInkUndo();self:update(true) end
     elseif id=="note" then self:setExpanded(false);p:openNotes()
-    elseif id=="settings" then self:setExpanded(false);p:showToolbarSettings()
+    elseif id=="audio" then
+        self:setExpanded(false)
+        if p.ui.dictionary_audio then p.ui.dictionary_audio:showSettings()
+        else p:notify(_("Enable Dictionary audio in the plugin manager, then restart KOReader.")) end
+    elseif id=="pen_only" or id=="touch" then p:setInputMode(id=="pen_only")
+    elseif id:match("^width_") then
+        local width=tonumber(id:match("%d+"))
+        if self:activeId()=="highlight" then p:setHighlighterWidth(width) else p:setPenWidth(width) end
+        self:update(true)
     elseif id=="read" then p:setDrawing(false)
     else p:setTool(id) end
+end
+function InkBar:moveDrag(pos)
+    local s=self.drag_start
+    local old=copy(self.dimen)
+    local x,y=self:clampPosition(s.px+pos.x-s.x,s.py+pos.y-s.y)
+    self.position={x=x,y=y};self:layout()
+    -- Moving reuses the cached tray pixels. Restore the old page footprint.
+    local damage=union(old,self.dimen)
+    UIManager:setDirty(self.plugin.ui,"ui",damage);UIManager:setDirty(self,"ui",damage)
 end
 function InkBar:onGesture(ges)
     local pos=ges.pos
     if not pos then return end
     local inside=self:contains(pos.x,pos.y)
-    if self.expanded then
-        if ges.ges~="tap" then return inside or nil end
-        if not inside then self:setExpanded(false);return true end
-        local x=(pos.x-self.dimen.x)/self.scale
-        local y=(pos.y-self.dimen.y)/self.scale
-        if x>=274 and x<348 and y>=10 and y<38 then self:activate("collapse")
-        elseif y>=101 and y<167 then
-            for i,id in ipairs(self.tools) do
-                local bx=12+(i-1)*86
-                if x>=bx and x<bx+78 then self:activate(id);break end
-            end
-        elseif y>=180 and y<220 then
-            for i,id in ipairs({"undo","note","settings"}) do
-                local bx=12+(i-1)*114
-                if x>=bx and x<bx+108 then self:activate(id);break end
-            end
+    local kind=ges.ges
+    if kind=="hold" and inside then
+        self.drag_start={x=pos.x,y=pos.y,px=self.dimen.x,py=self.dimen.y,origin=copy(self.dimen)};return true
+    end
+    if kind=="pan" or kind=="hold_pan" then
+        if not self.drag_start then
+            local start=ges.start_pos
+            if not start or not self:contains(start.x,start.y) then return inside or nil end
+            self.drag_start={x=start.x,y=start.y,px=self.dimen.x,py=self.dimen.y,origin=copy(self.dimen)}
         end
+        self:moveDrag(pos);return true
+    end
+    if (kind=="pan_release" or kind=="hold_release") and self.drag_start then
+        local origin=self.drag_start.origin
+        self:moveDrag(pos);self.drag_start=nil
+        UIManager:setDirty(self.plugin.ui,"full",union(origin,self.dimen))
+        self.plugin:setBarPosition(self.dimen.x,self.dimen.y)
         return true
     end
-    if ges.ges=="hold" and inside then self.drag_start={x=pos.x,y=pos.y,px=self.position.x,py=self.position.y};return true end
-    if ges.ges=="hold_release" and self.drag_start then
-        local old=copy(self.dimen);local s=self.drag_start;self.drag_start=nil
-        local x,y=self:clampPosition(s.px+pos.x-s.x,s.py+pos.y-s.y)
-        self.position={x=x,y=y};self.plugin:setBarPosition(x,y);self:layout();self:update(false)
-        UIManager:setDirty(self.plugin.ui,"ui",union(old,self.dimen));UIManager:setDirty(self,"ui",self.dimen);return true
-    end
     if self.drag_start then return true end
-    if inside then if ges.ges=="tap" then self:setExpanded(true) end;return true end
+    if kind~="tap" then return inside or nil end
+    if not inside then
+        if self.expanded then self:setExpanded(false);return true end
+        return
+    end
+    if not self.expanded then self:setExpanded(true);return true end
+    local x=(pos.x-self.dimen.x)/self.scale
+    local y=(pos.y-self.dimen.y)/self.scale
+    for _,button in ipairs(self:buttons()) do
+        if x>=button.x and x<button.x+button.w and y>=button.y and y<button.y+button.h then
+            if button.enabled then self:activate(button.id) end
+            return true
+        end
+    end
+    return true
 end
 function InkBar:windowBelow()
     for i=#UIManager._window_stack,1,-1 do local w=UIManager._window_stack[i].widget;if w~=self and not w.toast then return w end end

@@ -75,26 +75,34 @@ Open:
 Top menu → More tools → PageScribe
 ```
 
-A labeled status tab always stays on the page: for example, **Pen active ▸**
-with **4 px · Pen only** below it. Tap the tab to open the toolbar.
+The tray collapses to a small **Read / Pen / Mark / Erase ▸** tab, just 48 × 30
+logical pixels. Tap it to open a narrow tool strip. UI scaling is capped so the
+tray stays compact on high-DPI screens. The default position is near the bottom
+edge; saved positions are preserved.
 
-Tap **Read | Pen | Highlight | Erase** to use that tool immediately. The active
-button has a filled background and **✓ ACTIVE**. There is no separate browsing
-or confirmation step. The status line states the active tool, width and input
-mode. The toolbar can stay open while you write on the page.
+Tap **Read | Pen | Highlight | Erase** to activate a tool immediately. A filled
+button and checkmark show the active tool. Its options appear **inline below the
+strip**, so the page stays visible:
 
-- **Read** stops handwriting so you can turn pages, select words and look them up.
-- **Pen**, **Highlight**, and **Erase** enable writing with the chosen tool.
-- **Undo** removes the last page stroke; **No ink** indicates it is unavailable.
-- **Notes** opens page-note editing, navigation to noted pages, and HTML export.
-- **Settings** opens exact 2 / 4 / 7 px pen widths, Pen only / Pen + finger, and Dictionary audio.
-- **Dictionary audio** has independent English and Spanish ON/OFF switches and Normal / Slower / Very slow Spanish pronunciation speed.
-- **Hide ▸** collapses the toolbar while preserving the tool. The status tab always reopens it.
+- **Pen:** 2 / 4 / 7 px widths.
+- **Highlight:** 12 / 24 / 36 px widths, independent of the pen.
+- **Pen only / Pen + finger:** switch input directly in the same strip.
+- **Read:** stops handwriting and removes the options row for reading and word lookup.
+- **Undo:** removes the last page stroke; unavailable when there is no page ink.
+- **Notes:** opens typed page notes, noted-page navigation and HTML export.
+- **Audio:** directly opens independent English and Spanish switches and Spanish speed.
+- **‹:** collapses the tray, preserving the active tool.
 
-Long-press and drag the collapsed status tab to move it. Its position is saved.
-The **Open toolbar** menu item and gesture shortcut also open it. The panel uses
-a bounded cached buffer, integral pixel positions and measured text boxes.
-Closing restores the page with a clean refresh.
+**Drag anywhere on the tab or expanded tray** to move it. No long press is
+required. It follows the drag, stays within the screen and saves its final
+position. Long-press dragging also works.
+
+Dictionary audio also has its own **Top menu → More tools → Dictionary audio**
+entry, separate from PageScribe.
+
+The **Open toolbar** menu item and gesture shortcut also open the strip. The
+tray uses a bounded cached buffer, integer pixel positions and measured text
+boxes. Moving it reuses its cached pixels and restores the page beneath it.
 
 Drawing retains every distinct input point, merges overlapping brush stamps,
 and batches Android display posts at 30 Hz by default. A pen lift flushes the
@@ -256,10 +264,10 @@ GPL-3.0. Generation runs locally, preserves the original translation keys, and
 can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
 Use Android's media volume for playback volume.
 
-### PageScribe 0.7 controls
+### PageScribe 0.8 controls
 
-Direct tool selection replaces the click wheel. Active state is always visible;
-there are no pending choices. Native pens can draw, highlight, erase, and tap
+The small draggable tray keeps tool options inline. Active state is visible;
+there are no pending choices or tool-setting dialogs. Native pens can draw, highlight, erase, and tap
 the toolbar. Pen-only mode blocks finger ink and page gestures while keeping
 controls accessible. Pen compatibility depends on KOReader exposing the
 device's native stylus events.

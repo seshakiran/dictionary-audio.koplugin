@@ -297,6 +297,10 @@ do
     function p:setTool(tool) self.drawing=true;self.eraser=tool=="eraser";self.highlighter=tool=="highlight";self.bar:update(true) end
     function p:setDrawing(on) self.drawing=on;self.bar:update(true) end
     function p:setPenWidth(w) self.pen_width=w end
+    function p:setHighlighterWidth(w) self.highlighter_width=w end
+    function p:setInputMode(on) self.stylus_only=on;self.bar:update(true) end
+    p.ui.dictionary_audio={showSettings=function() log[#log+1]="audio" end}
+    require("device").input={registerStylusCallback=function() end}
     function p:setBarPosition(x,y) self.bar_position={x=x,y=y} end
     local reader,menu=Reader:new{},Menu:new{}
     local bar=InkBar:new{plugin=p};p.bar=bar
@@ -305,41 +309,67 @@ do
         log={};bar:handleEvent(Event:new("Gesture",{ges=kind,pos={x=x,y=y},start_pos=start}));return table.concat(log,",")
     end
     local function open() if not bar.expanded then gesture("tap",bar.cx,bar.cy) end end
-    local function tap(x,y) return gesture("tap",bar.dimen.x+bar:S(x),bar.dimen.y+bar:S(y)) end
+    local function tap(id)
+        for _,button in ipairs(bar:buttons()) do
+            if button.id==id then
+                return gesture("tap",bar.dimen.x+bar:S(button.x+button.w/2),bar.dimen.y+bar:S(button.y+button.h/2))
+            end
+        end
+        error("Missing button "..id)
+    end
     check("collapsed tab names actual mode",bar:displayInfo().status,"Read active")
+    check("closed tray has tiny footprint",bar.dimen.w<=48 and bar.dimen.h<=30,true)
     check("page taps are forwarded",gesture("tap",10,10),"reader")
-    open();check("status tab opens toolbar",bar.expanded,true)
-    tap(137,130)
+    open();check("status tab opens tray",bar.expanded,true)
+    check("reading tray is one slim row",bar.dimen.h,40)
+    tap("pen")
     check("one tap immediately activates pen",p.drawing and not p.highlighter and not p.eraser,true)
-    check("toolbar stays open to show applied state",bar.expanded,true)
-    check("pen status has no pending choice",bar:displayInfo().status,"Pen active")
-    tap(223,130);check("one tap immediately activates highlight",p.highlighter,true)
-    check("highlight reports actual marker width",bar:displayInfo().detail,"24 px · Pen + finger")
-    tap(309,130);check("one tap immediately activates eraser",p.eraser,true)
-    tap(51,130);check("one tap Read stops drawing",p.drawing,false)
+    check("pen choices open inline",bar.expanded and bar.dimen.h==78,true)
+    tap("width_7");check("inline width changes pen immediately",p.pen_width,7)
+    tap("pen_only");check("inline input mode changes immediately",p.stylus_only,true)
+    tap("touch")
+    tap("highlight");check("one tap immediately activates highlight",p.highlighter,true)
+    tap("width_12");check("inline highlight width changes independently",p.highlighter_width,12)
+    check("highlight does not change pen width",p.pen_width,7)
+    check("status uses actual highlight width",bar:displayInfo().detail,"12 px · Pen + finger")
+    tap("eraser");check("one tap immediately activates eraser",p.eraser,true)
+    tap("read");check("Read stops drawing",p.drawing,false)
+    check("Read removes unnecessary inline options",bar.dimen.h,40)
     check("Read states writing is off",bar:displayInfo().detail,"Writing off")
-    tap(137,130);tap(94,130)
-    check("gaps between tools cannot change mode",bar:activeId(),"pen")
-    check("undo with no page ink is disabled",tap(60,200),"")
+    tap("pen")
+    check("empty-page Undo is disabled",tap("undo"),"")
     p.store={get=function() return {{n=1}} end};p.currentPage=function() return 1 end
-    check("Undo applies directly when ink exists",tap(60,200),"undo")
-    check("Notes opens its separate dialog",tap(170,200),"notes")
-    check("Notes collapses toolbar before dialog",bar.expanded,false)
-    open();check("Settings opens its separate dialog",tap(282,200),"settings")
-    open();tap(310,24)
-    check("Hide collapses without switching tool",bar.expanded or bar:activeId()~="pen",false)
+    check("Undo applies directly when ink exists",tap("undo"),"undo")
+    check("Audio is a direct tray action",tap("audio"),"audio")
+    open();check("Notes is a direct tray action",tap("note"),"notes")
+    open();tap("collapse")
+    check("collapse keeps selected tool",bar.expanded or bar:activeId()~="pen",false)
     check("status tab remains reachable",bar:contains(bar.cx,bar.cy),true)
-    open();gesture("tap",10,10);check("outside tap collapses controls",bar.expanded,false)
-    UIManager._window_stack={{widget=reader},{widget=menu},{widget=bar}}
-    check("page tap forwards to an open dialog",gesture("tap",10,10),"menu")
-    UIManager._window_stack={{widget=reader},{widget=bar}}
+    -- Pan directly, without a long press; move on every frame and persist on release.
     local x,y=bar.cx,bar.cy
-    gesture("hold",x,y);gesture("hold_release",x-70,y+80)
-    check("moving the status tab persists integer coordinates",p.bar_position.x%1==0 and p.bar_position.y%1==0,true)
+    local old_x=bar.dimen.x
+    gesture("pan",x-70,y-80,{x=x,y=y})
+    check("collapsed tray follows direct drag",bar.dimen.x,old_x-70)
+    gesture("pan_release",x-70,y-80)
+    check("drag position persists",p.bar_position.x,bar.dimen.x)
+    open()
+    x,y=bar.dimen.x+bar:S(10),bar.dimen.y+bar:S(16)
+    old_x=bar.dimen.x
+    gesture("pan",x-30,y-40,{x=x,y=y})
+    check("expanded tray also follows direct drag",bar.dimen.x,old_x-30)
+    gesture("pan_release",x-30,y-40)
+    check("drag does not activate a tool",bar:activeId(),"pen")
+    x,y=bar.cx,bar.cy
+    gesture("pan",-500,-500,{x=x,y=y});gesture("pan_release",-500,-500)
+    check("drag clamps safely at screen edge",bar.dimen.x==2 and bar.dimen.y==2,true)
+    tap("collapse")
+    UIManager._window_stack={{widget=reader},{widget=menu},{widget=bar}}
+    check("page tap forwards to an open dialog",gesture("tap",500,500),"menu")
+    UIManager._window_stack={{widget=reader},{widget=bar}}
     p.drawing=true;p.highlighter=false;p.eraser=false;p.stylus_only=true
-    check("status names width and input",bar:displayInfo().detail,"4 px · Pen only")
+    check("status names actual width and input",bar:displayInfo().detail,"7 px · Pen only")
     p.store={get=function() return {} end}
-    check("empty-page undo is unavailable",bar:canUndo(),false)
+    check("empty-page Undo remains unavailable",bar:canUndo(),false)
     p.store=nil
     -- Strict pixel buffer rejects the exact fractional-row bug from the old menu.
     local BB=require("ffi/blitbuffer")
@@ -768,17 +798,18 @@ do
     p.dialogOnTop=FingerInk.dialogOnTop
     check("open toolbar does not block pen writing",p:dialogOnTop(),false)
     p:showToolbarSettings()
-    shown.buttons[2][3].callback()
-    check("Settings width applies exact value",p.pen_width,7)
-    check("Settings width persists",settings.fingerink_pen_width,7)
-    shown.buttons[3][2].callback()
-    check("Settings allows pen and finger",p.stylus_only,false)
-    shown.buttons[3][1].callback()
-    check("Settings allows pen only",p.stylus_only,true)
-    local audio_opened=false
-    p.ui.dictionary_audio={showSettings=function() audio_opened=true end}
-    shown.buttons[4][1].callback()
-    check("Settings links to dictionary audio",audio_opened,true)
+    check("settings shortcut opens inline tray",p.bar.expanded,true)
+    p:setPenWidth(7)
+    check("pen width persists",settings.fingerink_pen_width,7)
+    p:setHighlighterWidth(36)
+    check("highlight width persists independently",settings.fingerink_highlighter_width,36)
+    p.highlighter=true;p:startStroke(400,400)
+    check("native marker uses selected inline width",p.stroke.w,36)
+    p:abortStroke();p.highlighter=false
+    p:setInputMode(false)
+    check("inline mode permits pen and finger",p.stylus_only,false)
+    p:setInputMode(true)
+    check("inline mode permits pen only",p.stylus_only,true)
     p:openNotes()
     check("Notes dialog offers current-page editor",shown.buttons[1][1].text,"Add / edit this page note")
     UIManager.show=old_show
