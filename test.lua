@@ -277,7 +277,7 @@ end
 
 -- ------------------------------------------------- toolbar input forwarding
 
-section("click wheel: browse, confirm and bounded rendering")
+section("direct toolbar: immediate tools, clear state and bounded rendering")
 do
     local Event=require("ui/event")
     local UIManager=require("ui/uimanager")
@@ -292,6 +292,8 @@ do
     local p={drawing=false,eraser=false,highlighter=false,pen_width=4,ui={}}
     function p:abortStroke() end
     function p:onFingerInkUndo() log[#log+1]="undo" end
+    function p:openNotes() log[#log+1]="notes" end
+    function p:showToolbarSettings() log[#log+1]="settings" end
     function p:setTool(tool) self.drawing=true;self.eraser=tool=="eraser";self.highlighter=tool=="highlight";self.bar:update(true) end
     function p:setDrawing(on) self.drawing=on;self.bar:update(true) end
     function p:setPenWidth(w) self.pen_width=w end
@@ -303,63 +305,41 @@ do
         log={};bar:handleEvent(Event:new("Gesture",{ges=kind,pos={x=x,y=y},start_pos=start}));return table.concat(log,",")
     end
     local function open() if not bar.expanded then gesture("tap",bar.cx,bar.cy) end end
-    check("hub starts in explicit READ OFF state",bar.state.." "..bar.subtitle,"READ OFF")
+    local function tap(x,y) return gesture("tap",bar.dimen.x+bar:S(x),bar.dimen.y+bar:S(y)) end
+    check("collapsed tab names actual mode",bar:displayInfo().status,"Read active")
     check("page taps are forwarded",gesture("tap",10,10),"reader")
-    open();check("hub tap opens click wheel",bar.expanded,true)
-    check("initial highlight follows active mode",bar.items[bar.focus].id,"read")
-    local before=bar.focus
-    gesture("tap",bar.cx+bar.wheel_r*.7,bar.cy)
-    check("right button browses next item",bar.focus,before+1)
-    check("browsing does not activate a tool",p.drawing,false)
-    bar.focus=1;bar:update(false)
-    gesture("tap",bar.cx,bar.cy)
-    check("center SELECT applies highlighted tool",p.drawing,true)
-    check("applied tool closes wheel",bar.expanded,false)
-    check("hub shows active PEN ON",bar.state.." "..bar.subtitle,"PEN ON")
-    open();bar.focus=2;bar:update(false)
-    check("header retains applied tool while browsing",bar.active_label,"WRITING: PEN")
-    gesture("tap",bar.cx,bar.cy)
-    check("center SELECT applies highlighter",p.highlighter,true)
-    open();gesture("tap",bar.cx,bar.cy+bar.wheel_r*.7)
-    check("bottom READ button stops writing",p.drawing,false)
-    check("header explicitly says ink off",bar.active_label,"READING: INK OFF")
-    gesture("tap",bar.cx,bar.cy+bar.wheel_r*.7)
-    check("bottom WRITE resumes prior tool",p.highlighter,true)
-    local initial=bar.focus
-    local start={x=bar.cx,y=bar.cy-bar.wheel_r*.7}
-    gesture("pan",bar.cx+bar.wheel_r*.7,bar.cy,start)
-    check("clockwise quarter-turn advances three detents",bar.focus,(initial-1+3)%8+1)
-    gesture("pan_release",bar.cx+bar.wheel_r*.7,bar.cy)
-    check("releasing rotation never applies selection",bar.expanded,true)
-    check("release clears rotating state",bar.rotating,false)
-    local active=p.highlighter
-    gesture("tap",bar.cx,bar.cy-bar.wheel_r*.7)
-    check("MENU closes without changing active tool",p.highlighter,active)
-    check("MENU leaves hub accessible",bar:contains(bar.cx,bar.cy),true)
-    open();gesture("tap",10,10);check("outside tap closes controls",bar.expanded,false)
+    open();check("status tab opens toolbar",bar.expanded,true)
+    tap(137,130)
+    check("one tap immediately activates pen",p.drawing and not p.highlighter and not p.eraser,true)
+    check("toolbar stays open to show applied state",bar.expanded,true)
+    check("pen status has no pending choice",bar:displayInfo().status,"Pen active")
+    tap(223,130);check("one tap immediately activates highlight",p.highlighter,true)
+    check("highlight reports actual marker width",bar:displayInfo().detail,"24 px · Pen + finger")
+    tap(309,130);check("one tap immediately activates eraser",p.eraser,true)
+    tap(51,130);check("one tap Read stops drawing",p.drawing,false)
+    check("Read states writing is off",bar:displayInfo().detail,"Writing off")
+    tap(137,130);tap(94,130)
+    check("gaps between tools cannot change mode",bar:activeId(),"pen")
+    check("undo with no page ink is disabled",tap(60,200),"")
+    p.store={get=function() return {{n=1}} end};p.currentPage=function() return 1 end
+    check("Undo applies directly when ink exists",tap(60,200),"undo")
+    check("Notes opens its separate dialog",tap(170,200),"notes")
+    check("Notes collapses toolbar before dialog",bar.expanded,false)
+    open();check("Settings opens its separate dialog",tap(282,200),"settings")
+    open();tap(310,24)
+    check("Hide collapses without switching tool",bar.expanded or bar:activeId()~="pen",false)
+    check("status tab remains reachable",bar:contains(bar.cx,bar.cy),true)
+    open();gesture("tap",10,10);check("outside tap collapses controls",bar.expanded,false)
     UIManager._window_stack={{widget=reader},{widget=menu},{widget=bar}}
     check("page tap forwards to an open dialog",gesture("tap",10,10),"menu")
     UIManager._window_stack={{widget=reader},{widget=bar}}
     local x,y=bar.cx,bar.cy
     gesture("hold",x,y);gesture("hold_release",x-70,y+80)
-    check("moving the hub persists integer coordinates",p.bar_position.x%1==0 and p.bar_position.y%1==0,true)
+    check("moving the status tab persists integer coordinates",p.bar_position.x%1==0 and p.bar_position.y%1==0,true)
     p.drawing=true;p.highlighter=false;p.eraser=false;p.stylus_only=true
-    bar.focus=2
-    local info=bar:displayInfo()
-    check("now screen identifies applied pen",info.now.name,"Pen")
-    check("now screen reports writing state",info.now.status,"WRITING ON")
-    check("now screen identifies input and width",info.now.detail,"4 px · Pen only")
-    check("candidate remains explicitly inactive",info.choice.badge,"NOT ACTIVE")
-    check("SELECT explains exact pending change",info.choice.action,"SELECT: Switch to Highlighter")
-    check("next option is named",info.next,"Eraser")
-    bar.focus=1
-    check("same-tool choice says already active",bar:displayInfo().choice.badge,"ACTIVE NOW")
-    p.drawing=false;bar.focus=4
-    check("reading status explicitly disables ink",bar:displayInfo().now.status,"WRITING OFF")
-    bar.focus=6
-    check("width action names next thickness",bar:displayInfo().choice.action,"SELECT: Set pen to 7 px")
-    p.store={get=function() return {} end};p.currentPage=function() return 1 end;bar.focus=5
-    check("empty-page undo is unavailable",bar:displayInfo().choice.available,false)
+    check("status names width and input",bar:displayInfo().detail,"4 px · Pen only")
+    p.store={get=function() return {} end}
+    check("empty-page undo is unavailable",bar:canUndo(),false)
     p.store=nil
     -- Strict pixel buffer rejects the exact fractional-row bug from the old menu.
     local BB=require("ffi/blitbuffer")
@@ -384,7 +364,10 @@ do
     for _,scale in ipairs({1,1.75,2.5,3}) do
         Screen.scaleBySize=function(_,v) return math.floor(v*scale+.5) end
         local b=InkBar:new{plugin=p};p.bar=b;b:setExpanded(true)
-        b:paintTo(screen)
+        for _,tool in ipairs(b.tools) do
+            p.drawing=tool~="read";p.highlighter=tool=="highlight";p.eraser=tool=="eraser"
+            b:update(false);b:paintTo(screen)
+        end
         check("bounded integral rendering at DPI scale "..scale,paints>0,true)
         local surface=b.surface;b:paintTo(screen)
         check("unchanged menu reuses cached surface "..scale,b.surface,surface)
@@ -768,6 +751,32 @@ do
     p:onStylusEvent({slot=4,id=9,tool=3,x=400,y=400})
     check("native highlighter tool makes marker stroke",p.stroke.tool,"highlight")
     p:onStylusEvent({slot=4,id=-1,tool=3})
+    local UIManager=require("ui/uimanager")
+    local old_show=UIManager.show
+    local shown
+    UIManager.show=function(_,dialog) shown=dialog end
+    package.preload["ui/widget/buttondialog"]=function() return {new=function(_,o) return o end} end
+    G_reader_settings={saveSetting=function(_,k,v) settings[k]=v end}
+    p.bar={expanded=true,update=function() end,setExpanded=function(self,on) self.expanded=on end,
+        windowBelow=function() return p.ui end}
+    p.dialogOnTop=FingerInk.dialogOnTop
+    check("open toolbar does not block pen writing",p:dialogOnTop(),false)
+    p:showToolbarSettings()
+    shown.buttons[2][3].callback()
+    check("Settings width applies exact value",p.pen_width,7)
+    check("Settings width persists",settings.fingerink_pen_width,7)
+    shown.buttons[3][2].callback()
+    check("Settings allows pen and finger",p.stylus_only,false)
+    shown.buttons[3][1].callback()
+    check("Settings allows pen only",p.stylus_only,true)
+    local audio_opened=false
+    p.ui.dictionary_audio={showSettings=function() audio_opened=true end}
+    shown.buttons[4][1].callback()
+    check("Settings links to dictionary audio",audio_opened,true)
+    p:openNotes()
+    check("Notes dialog offers current-page editor",shown.buttons[1][1].text,"Add / edit this page note")
+    UIManager.show=old_show
+
 
 end
 

@@ -65,7 +65,7 @@ package.preload['device']=function() return {screen={getWidth=function() return 
 package.preload['gettext']=function() return function(s) return s end end
 package.preload['ui/widget/notification']=function() return {new=function(_,o) return o end} end
 local shown
-package.preload['ui/uimanager']=function() return {show=function(_,o) shown=o end} end
+package.preload['ui/uimanager']=function() return {show=function(_,o) shown=o end,close=function() end} end
 package.preload['ui/widget/menu']=function() return {new=function(_,o) return o end} end
 local Widget={}
 function Widget:extend(o) return setmetatable(o or {},{__index=self}) end
@@ -127,3 +127,16 @@ local settings_menu={};restored:addToMainMenu(settings_menu)
 settings_menu.dictionary_audio.sub_item_table[2].callback()
 assert(buttons.offline_spanish_audio.show_func() and buttons.offline_english_audio.show_func())
 print('Language preferences survive reopening books and independently control popup button visibility')
+
+package.preload['ui/widget/buttondialog']=function() return {new=function(_,o) return o end} end
+assert(restored.ui.dictionary_audio==restored)
+restored:showSettings()
+assert(shown.buttons[1][1].text=='English audio: ON')
+shown.buttons[2][1].callback()
+assert(not restored.spanish_enabled and restored.english_enabled)
+assert(not shown.buttons[4][1].enabled)
+shown.buttons[2][1].callback()
+shown.buttons[4][2].callback()
+assert(restored.spanish_enabled and restored.spanish_rate==0.85)
+assert(shown.buttons[4][2].text=='✓ Slower')
+print('Toolbar audio dialog: independent switches, disabled speed when off, selected speed and persistence passed')

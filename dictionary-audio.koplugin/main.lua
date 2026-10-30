@@ -10,6 +10,7 @@ local Index=dofile(directory.."audio_index.lua")
 local Player=dofile(directory.."audio_player.lua")
 local Audio=WidgetContainer:extend{name="dictionary_audio",is_doc_only=true}
 function Audio:init()
+    self.ui.dictionary_audio=self
     self.root=DataStorage:getDataDir().."/data/dict/"
     self.indices={}
     local legacy=G_reader_settings:readSetting("dictionary_audio_enabled")
@@ -94,6 +95,29 @@ function Audio:addToMainMenu(items)
             self:rateItem(_("Normal"),1.0),self:rateItem(_("Slower"),0.85),self:rateItem(_("Very slow"),0.7),
         },help_text=_("Changes playback speed while preserving the voice's pitch. Applies to the next Spanish word; English playback stays normal.")},
     }}
+end
+function Audio:showSettings()
+    local ButtonDialog=require("ui/widget/buttondialog")
+    local dialog
+    local function selected(on,label) return (on and "✓ " or "")..label end
+    local function change(callback)
+        return function() UIManager:close(dialog);callback();self:showSettings() end
+    end
+    local rates={}
+    for _,entry in ipairs({{_("Normal"),1},{_("Slower"),0.85},{_("Very slow"),0.7}}) do
+        local label,rate=entry[1],entry[2]
+        rates[#rates+1]={text=selected(self.spanish_rate==rate,label),enabled=self.spanish_enabled,
+            callback=change(self:rateItem(label,rate).callback)}
+    end
+    dialog=ButtonDialog:new{title=_("Dictionary audio"),buttons={
+        {{text=_("English audio: ")..(self.english_enabled and _("ON") or _("OFF")),
+            callback=change(self:languageItem("","english").callback)}},
+        {{text=_("Spanish audio: ")..(self.spanish_enabled and _("ON") or _("OFF")),
+            callback=change(self:languageItem("","spanish").callback)}},
+        {{text=_("Spanish pronunciation speed"),enabled=false}},rates,
+        {{text=_("Done"),callback=function() UIManager:close(dialog) end}},
+    }}
+    UIManager:show(dialog)
 end
 function Audio:onCloseDocument() if self.player then self.player:stop() end end
 return Audio

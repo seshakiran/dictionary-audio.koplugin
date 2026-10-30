@@ -75,28 +75,26 @@ Open:
 Top menu → More tools → PageScribe
 ```
 
-A small status button always stays on the page, even if the old version's
-**Hide** setting was saved. It writes out **READ / OFF**, **PEN / ON**,
-**MARK / ON**, or **ERASE / ON**. Tap it to open the classic click-wheel panel.
+A labeled status tab always stays on the page: for example, **Pen active ▸**
+with **4 px · Pen only** below it. Tap the tab to open the toolbar.
 
-The top header is the **active mode**. The black list row is the **browsed
-choice**; browsing alone never changes tools. Rotate a finger around the ring,
-or tap its left/right arrows, to move the highlighted row. Press the center
-**SELECT** button to apply that choice:
+Tap **Read | Pen | Highlight | Erase** to use that tool immediately. The active
+button has a filled background and **✓ ACTIVE**. There is no separate browsing
+or confirmation step. The status line states the active tool, width and input
+mode. The toolbar can stay open while you write on the page.
 
-- **Pen**, **Highlighter**, **Eraser** select the tool and enable drawing.
-- **Read / select text** stops drawing for reading, text selection and dictionary lookup.
-- **Undo stroke** removes the last stroke; **Pen width** cycles 2, 4 and 7 pixels.
-- **Page note** opens the current page's typed note.
-- **Close controls**, the ring's **MENU** button, or a tap outside closes the
-  panel. The status button stays available to reopen it.
-- The ring's bottom **READ / WRITE** button stops or resumes the last drawing tool.
+- **Read** stops handwriting so you can turn pages, select words and look them up.
+- **Pen**, **Highlight**, and **Erase** enable writing with the chosen tool.
+- **Undo** removes the last page stroke; **No ink** indicates it is unavailable.
+- **Notes** opens page-note editing, navigation to noted pages, and HTML export.
+- **Settings** opens exact 2 / 4 / 7 px pen widths, Pen only / Pen + finger, and Dictionary audio.
+- **Dictionary audio** has independent English and Spanish ON/OFF switches and Normal / Slower / Very slow Spanish pronunciation speed.
+- **Hide ▸** collapses the toolbar while preserving the tool. The status tab always reopens it.
 
-Long-press and drag the collapsed status button to move it. Its position is saved.
-The **Open tool wheel** menu item and gesture shortcut also open it. The panel
-is rendered into a bounded cached buffer, with integer pixel positions and
-measured text boxes at the current screen scale. Closing restores the page and
-requests a clean refresh to remove stale panel outlines.
+Long-press and drag the collapsed status tab to move it. Its position is saved.
+The **Open toolbar** menu item and gesture shortcut also open it. The panel uses
+a bounded cached buffer, integral pixel positions and measured text boxes.
+Closing restores the page with a clean refresh.
 
 Drawing retains every distinct input point, merges overlapping brush stamps,
 and batches Android display posts at 30 Hz by default. A pen lift flushes the
@@ -113,10 +111,10 @@ including reported eraser and highlighter tools. Android must expose the pen typ
 2. Restart KOReader and open a book, then **More tools → PageScribe → Start drawing**.
 3. Test the pen first. If it draws, enable **Stylus only (ignore fingers while drawing)**.
    This ignores every finger contact outside the toolbar while drawing, including
-   multi-touch palms. Choose **Read** in the wheel to turn pages or select text; the status button remains usable.
-4. Choose **Mark** in the wheel for a wide dotted freehand highlight that leaves
+   multi-touch palms. Choose **Read** in the toolbar to turn pages or select text; the status button remains usable.
+4. Choose **Highlight** in the toolbar for a wide dotted freehand highlight that leaves
    printed text readable on a monochrome screen. PDF export uses translucent yellow ink.
-5. For searchable text highlights, choose **Read** in the wheel or **Select text / highlight** in the
+5. For searchable text highlights, choose **Read** in the toolbar or **Select text / highlight** in the
    menu, then long-press and select text using KOReader's normal highlight controls.
    Manage these in KOReader's Bookmarks; they are separate from freehand marks.
 
@@ -258,17 +256,13 @@ GPL-3.0. Generation runs locally, preserves the original translation keys, and
 can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
 Use Android's media volume for playback volume.
 
-### PageScribe 0.6 controls
+### PageScribe 0.7 controls
 
-The display separates **NOW USING** (the applied tool, writing on/off, pen width,
-and Pen only / Pen + finger input) from **CHOOSE NEXT** (the pending choice, what
-it does, and the exact SELECT action). Browsing never changes the active tool.
-Rotate around the wheel or tap Prev/Next to browse, then press SELECT to apply.
-MENU closes the panel; the small status button remains available.
-
-Native pens can draw, highlight, erase, and operate the wheel. Pen-only mode
-blocks finger ink and page gestures while still allowing the controls. Pen
-compatibility depends on KOReader exposing the device's native stylus events.
+Direct tool selection replaces the click wheel. Active state is always visible;
+there are no pending choices. Native pens can draw, highlight, erase, and tap
+the toolbar. Pen-only mode blocks finger ink and page gestures while keeping
+controls accessible. Pen compatibility depends on KOReader exposing the
+device's native stylus events.
 
 Color screens automatically use a blue, amber, coral, and teal palette with
 RGB-preserving text and shapes. Monochrome screens keep explicit labels and

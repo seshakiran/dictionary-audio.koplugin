@@ -1,5 +1,5 @@
 --[[--
-PageScribe — draw on book pages with a finger.
+PageScribe — write on book pages with a pen or finger.
 
 The side toolbar is the control surface: it is a normal widget sitting above
 ReaderUI, and the capture handler passes through any contact that starts inside
@@ -190,7 +190,7 @@ the only way to close one. So drawing yields for as long as one is up.
 ]]
 function FingerInk:dialogOnTop()
     local below = self.bar and self.bar:windowBelow()
-    return (self.bar and self.bar.expanded) or (below ~= nil and below ~= self.ui)
+    return below ~= nil and below ~= self.ui
 end
 
 -- ------------------------------------------------------------------- state
@@ -715,6 +715,67 @@ function FingerInk:exportNotebook()
         or T(_("Could not export notebook: %1"), tostring(err)))
 end
 
+-- Keep direct tool buttons visible while writing. Settings are ordinary modal
+-- dialogs, so capture yields until they close without changing the chosen tool.
+function FingerInk:showToolbarSettings()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dialog
+    local function choose(callback)
+        return function() UIManager:close(dialog);callback();self:showToolbarSettings() end
+    end
+    local function selected(on,label) return (on and "✓ " or "")..label end
+    local has_pen=Device.input and Device.input.registerStylusCallback~=nil
+    local widths={}
+    for _,value in ipairs({2,4,7}) do
+        local width=value
+        widths[#widths+1]={text=selected(self.pen_width==width,width.." px"),callback=choose(function() self:setPenWidth(width) end)}
+    end
+    dialog=ButtonDialog:new{title=_("PageScribe settings"),buttons={
+        {{text=_("Pen width"),enabled=false}},widths,
+        {{text=selected(self.stylus_only,_("Pen only")),enabled=has_pen,callback=choose(function()
+            self:abortStroke();self:resetContacts();self.stylus_only=true
+            G_reader_settings:saveSetting("fingerink_stylus_only",true)
+            if self.bar then self.bar:update(true) end
+        end)},
+        {text=selected(not self.stylus_only,_("Pen + finger")),callback=choose(function()
+            self:abortStroke();self:resetContacts();self.stylus_only=false
+            G_reader_settings:saveSetting("fingerink_stylus_only",false)
+            if self.bar then self.bar:update(true) end
+        end)}},
+        {{text=_("Dictionary audio"),callback=function()
+            UIManager:close(dialog)
+            if self.ui.dictionary_audio and self.ui.dictionary_audio.showSettings then self.ui.dictionary_audio:showSettings()
+            else self:notify(_("Enable the Dictionary audio plugin, then restart KOReader.")) end
+        end}},
+        {{text=_("Done"),callback=function() UIManager:close(dialog);if self.bar then self.bar:setExpanded(true) end end}},
+    }}
+    UIManager:show(dialog)
+end
+function FingerInk:openNotes()
+    local ButtonDialog=require("ui/widget/buttondialog")
+    local dialog
+    dialog=ButtonDialog:new{title=_("Book notes"),buttons={
+        {{text=_("Add / edit this page note"),callback=function() UIManager:close(dialog);self:editNote(self:currentPage()) end}},
+        {{text=_("Go to a noted page"),callback=function()
+            UIManager:close(dialog)
+            local items={}
+            for _,page in ipairs(Notebook.pages(self.store,self.notes)) do
+                local number=page
+                local title=(self.notes[number] or ""):match("[^\r\n]+")
+                items[#items+1]={text=T(_("Page %1"),number)..(title and " · "..title:sub(1,60) or ""),callback=function()
+                    self:setDrawing(false);self.ui:handleEvent(Event:new("GotoPage",number))
+                end}
+            end
+            if #items==0 then self:notify(_("No notes in this book"));return end
+            UIManager:show(require("ui/widget/menu"):new{title=_("Noted pages"),item_table=items,
+                width=math.floor(Screen:getWidth()*0.8)})
+        end}},
+        {{text=_("Export notebook (HTML)"),callback=function() UIManager:close(dialog);self:exportNotebook() end}},
+        {{text=_("Back to tools"),callback=function() UIManager:close(dialog);if self.bar then self.bar:setExpanded(true) end end}},
+    }}
+    UIManager:show(dialog)
+end
+
 function FingerInk:addToMainMenu(menu_items)
     menu_items.fingerink = {
         text = _("PageScribe"),
@@ -740,10 +801,10 @@ function FingerInk:addToMainMenu(menu_items)
                 text = _("Start drawing"),
                 enabled_func = function() return not self.drawing end,
                 callback = function() self:setDrawing(true) end,
-                help_text = _([[Tap the persistent status button. Rotate around the click wheel, or tap its left/right buttons, to highlight an option. Press the center SELECT button to apply it. The top header shows the active tool. MENU closes the panel; the small status button stays visible.]]),
+                help_text = _([[Tap the persistent status tab. Tap Read, Pen, Highlight, or Erase to activate it immediately. The filled button with a checkmark is active. Undo, Notes, and Settings are separate. Hide collapses the toolbar; the labeled status tab always reopens it.]]),
             },
             {
-                text = _("Open tool wheel"),
+                text = _("Open toolbar"),
                 checked_func = function() return self.bar and self.bar.expanded end,
                 check_callback_updates_menu = true,
                 callback = function(touchmenu_instance)

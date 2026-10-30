@@ -1,3 +1,12 @@
+## 0.7.0 — direct toolbar
+
+- Replace the wheel and SELECT step with Read, Pen, Highlight, and Erase buttons that apply on one tap.
+- Show the active tool with a filled button, checkmark, explicit status, actual width and input mode.
+- Keep writing available with the toolbar open. Collapse into a labeled status tab that always reopens.
+- Separate Undo, Notes, and Settings; disable Undo when the page has no handwriting.
+- Add direct settings for pen width and pen-only input, with a link to Dictionary audio.
+- Add a dictionary audio dialog with independent English/Spanish switches and visible Spanish speed selection.
+
 ## 0.6.0 — PageScribe
 
 - Rename the visible product to PageScribe while preserving install folder, settings, notes, gesture IDs and update URLs.
