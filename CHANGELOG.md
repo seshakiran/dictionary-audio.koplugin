@@ -1,3 +1,9 @@
+## 0.11.1 — standalone update bridge
+
+- Point future handwriting updates to seshakiran/pagescribe.koplugin.
+- Keep this earlier fork's optional dictionary/audio sources and installation package available.
+- Preserve the install folder and saved notes when moving to the standalone build.
+
 ## 0.11.0 — native finger highlights and close control
 
 - Add a small × in the tray's top-right corner to close all inline options while keeping the launcher.

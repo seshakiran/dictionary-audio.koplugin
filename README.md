@@ -1,3 +1,5 @@
+> **PageScribe now has a standalone repository:** [seshakiran/pagescribe.koplugin](https://github.com/seshakiran/pagescribe.koplugin). Download the handwriting-only plugin and follow future development there. Existing notes and the `fingerink.koplugin` install folder stay compatible. This earlier fork retains the optional dictionary/audio sources and packs tooling.
+
 # PageScribe — pen and touch notes for KOReader
 
 Fork of [SMUsamaShah/fingerink.koplugin](https://github.com/SMUsamaShah/fingerink.koplugin), under the original AGPL-3.0 license.
