@@ -321,10 +321,13 @@ do
     check("closed tray has tiny footprint",bar.dimen.w<=48 and bar.dimen.h<=30,true)
     check("page taps are forwarded",gesture("tap",10,10),"reader")
     open();check("status tab opens tray",bar.expanded,true)
-    check("reading tray is one slim row",bar.dimen.h,40)
+    check("reading tray is one slim row",bar.dimen.h,48)
     tap("pen")
     check("one tap immediately activates pen",p.drawing and not p.highlighter and not p.eraser,true)
-    check("pen choices open inline",bar.expanded and bar.dimen.h==78,true)
+    check("pen choices open inline",bar.expanded and bar.dimen.h==92,true)
+    for _,width in ipairs({2,4,7,9,10,12}) do
+        tap("width_"..width);check("inline pen width "..width,p.pen_width,width)
+    end
     tap("width_7");check("inline width changes pen immediately",p.pen_width,7)
     tap("pen_only");check("inline input mode changes immediately",p.stylus_only,true)
     tap("touch")
@@ -334,7 +337,7 @@ do
     check("status uses actual highlight width",bar:displayInfo().detail,"12 px · Pen + finger")
     tap("eraser");check("one tap immediately activates eraser",p.eraser,true)
     tap("read");check("Read stops drawing",p.drawing,false)
-    check("Read removes unnecessary inline options",bar.dimen.h,40)
+    check("Read removes unnecessary inline options",bar.dimen.h,48)
     check("Read states writing is off",bar:displayInfo().detail,"Writing off")
     tap("pen")
     check("empty-page Undo is disabled",tap("undo"),"")
@@ -393,7 +396,12 @@ do
     local old_scale=Screen.scaleBySize
     for _,scale in ipairs({1,1.75,2.5,3}) do
         Screen.scaleBySize=function(_,v) return math.floor(v*scale+.5) end
-        local b=InkBar:new{plugin=p};p.bar=b;b:setExpanded(true)
+        local b=InkBar:new{plugin=p};p.bar=b
+        local compact_w,compact_scale=b.dimen.w,b.scale
+        b:setExpanded(true)
+        check("small launcher preserved at DPI "..scale,compact_w,math.floor(48*math.min(scale,1.5)+.5))
+        check("expanded tray uses available DPI "..scale,b.scale>=compact_scale,true)
+
         for _,tool in ipairs(b.tools) do
             p.drawing=tool~="read";p.highlighter=tool=="highlight";p.eraser=tool=="eraser"
             b:update(false);b:paintTo(screen)
@@ -799,6 +807,11 @@ do
     check("open toolbar does not block pen writing",p:dialogOnTop(),false)
     p:showToolbarSettings()
     check("settings shortcut opens inline tray",p.bar.expanded,true)
+    for _,width in ipairs({2,4,7,9,10,12}) do
+        p:setPenWidth(width);p:startStroke(400,400)
+        check("actual pen stroke width "..width,p.stroke.w,width)
+        p:abortStroke()
+    end
     p:setPenWidth(7)
     check("pen width persists",settings.fingerink_pen_width,7)
     p:setHighlighterWidth(36)

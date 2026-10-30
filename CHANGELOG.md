@@ -1,3 +1,9 @@
+## 0.9.0 — small launcher, larger inline tray
+
+- Keep the launch tab small while expanding the inline tray at the screen's normal scale, with larger labels and tap targets.
+- Add 2, 4, 7, 9, 10 and 12 px pen widths in the inline row and reader menu.
+- Preserve dragging, independent highlighter widths, audio controls and existing notes.
+
 ## 0.8.0 — compact draggable tray
 
 - Shrink the closed tray to 48×30 logical pixels and the open strip to 380×40, with a 38-pixel inline row only while writing. Cap UI scale to keep it compact on high-DPI readers.

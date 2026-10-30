@@ -76,15 +76,15 @@ Top menu → More tools → PageScribe
 ```
 
 The tray collapses to a small **Read / Pen / Mark / Erase ▸** tab, just 48 × 30
-logical pixels. Tap it to open a narrow tool strip. UI scaling is capped so the
-tray stays compact on high-DPI screens. The default position is near the bottom
+logical pixels. Tap it to open a larger inline tool strip. The launch tab stays small, while
+the opened tray uses the screen’s normal scale and larger touch targets. The default position is near the bottom
 edge; saved positions are preserved.
 
 Tap **Read | Pen | Highlight | Erase** to activate a tool immediately. A filled
 button and checkmark show the active tool. Its options appear **inline below the
 strip**, so the page stays visible:
 
-- **Pen:** 2 / 4 / 7 px widths.
+- **Pen:** 2 / 4 / 7 / 9 / 10 / 12 px widths.
 - **Highlight:** 12 / 24 / 36 px widths, independent of the pen.
 - **Pen only / Pen + finger:** switch input directly in the same strip.
 - **Read:** stops handwriting and removes the options row for reading and word lookup.
@@ -264,7 +264,7 @@ GPL-3.0. Generation runs locally, preserves the original translation keys, and
 can resume a matching partial pack. Voice/pace manifests prevent mixing builds.
 Use Android's media volume for playback volume.
 
-### PageScribe 0.8 controls
+### PageScribe 0.9 controls
 
 The small draggable tray keeps tool options inline. Active state is visible;
 there are no pending choices or tool-setting dialogs. Native pens can draw, highlight, erase, and tap

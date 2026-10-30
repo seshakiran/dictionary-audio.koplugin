@@ -830,9 +830,8 @@ function FingerInk:addToMainMenu(menu_items)
             {
                 text = _("Pen width"),
                 sub_item_table = {
-                    self:penItem(_("Thin"), PEN_THIN),
-                    self:penItem(_("Medium"), PEN_MEDIUM),
-                    self:penItem(_("Thick"), PEN_THICK),
+                    self:penItem("2 px", 2), self:penItem("4 px", 4), self:penItem("7 px", 7),
+                    self:penItem("9 px", 9), self:penItem("10 px", 10), self:penItem("12 px", 12),
                 },
             },
             {

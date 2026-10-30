@@ -74,7 +74,9 @@ end
 
 function InkBar:init()
     self.base_scale=Screen:scaleBySize(100)/100
-    self.scale=math.min(self.base_scale,1.5,(Screen:getWidth()-8)/380,(Screen:getHeight()-8)/78)
+    self.compact_scale=math.min(self.base_scale,1.5)
+    self.expanded_scale=math.min(self.base_scale,(Screen:getWidth()-8)/540,(Screen:getHeight()-8)/92)
+    self.scale=self.compact_scale
     self.tools={"read","pen","highlight","eraser"}
     self.color_mode=not not (Device.hasColorScreen and Device:hasColorScreen() and BB.ColorRGB32 and BB.TYPE_BBRGB32)
     self.palette=THEMES[self.color_mode and "color" or "mono"];self.color_cache={}
@@ -90,14 +92,15 @@ function InkBar:activeId()
     return not p.drawing and "read" or p.eraser and "eraser" or p.highlighter and "highlight" or "pen"
 end
 function InkBar:traySize()
-    return self.expanded and self:S(380) or self.hub_w,
-        self.expanded and self:S(self:activeId()=="read" and 40 or 78) or self.hub_h
+    return self.expanded and self:S(540) or self.hub_w,
+        self.expanded and self:S(self:activeId()=="read" and 48 or 92) or self.hub_h
 end
 function InkBar:clampPosition(x,y)
     local w,h=self:traySize()
     return round(clamp(x,2,Screen:getWidth()-w-2)),round(clamp(y,2,Screen:getHeight()-h-2))
 end
 function InkBar:layout()
+    self.scale=self.expanded and self.expanded_scale or self.compact_scale
     local x,y=self:clampPosition(self.position.x,self.position.y)
     local w,h=self:traySize()
     self.dimen=Geom:new{x=x,y=y,w=w,h=h}
@@ -163,22 +166,23 @@ function InkBar:buttons()
         list[#list+1]={id=id,label=label,x=x,y=y,w=w,h=h,selected=selected,enabled=enabled~=false}
     end
     if not self.expanded then return list end
-    add("read",_("Read"),24,4,40,32,active=="read")
-    add("pen",_("Pen"),66,4,40,32,active=="pen")
-    add("highlight",_("Highlight"),108,4,64,32,active=="highlight")
-    add("eraser",_("Erase"),174,4,48,32,active=="eraser")
-    add("undo",_("Undo"),224,4,38,32,false,self:canUndo())
-    add("note",_("Notes"),264,4,40,32)
-    add("audio",_("Audio"),306,4,44,32)
-    add("collapse","‹",352,4,24,32)
+    add("read",_("Read"),28,4,56,40,active=="read")
+    add("pen",_("Pen"),86,4,56,40,active=="pen")
+    add("highlight",_("Highlight"),144,4,88,40,active=="highlight")
+    add("eraser",_("Erase"),234,4,62,40,active=="eraser")
+    add("undo",_("Undo"),298,4,52,40,false,self:canUndo())
+    add("note",_("Notes"),352,4,58,40)
+    add("audio",_("Audio"),412,4,64,40)
+    add("collapse",_("Hide"),478,4,58,40)
     if active~="read" then
-        local widths=active=="highlight" and {12,24,36} or {2,4,7}
+        local widths=active=="highlight" and {12,24,36} or {2,4,7,9,10,12}
         if active~="eraser" then
             local current=active=="highlight" and (p.highlighter_width or 24) or p.pen_width
-            for i,w in ipairs(widths) do add("width_"..w,tostring(w).." px",58+(i-1)*44,44,42,30,current==w) end
+            local step=288/#widths
+            for i,w in ipairs(widths) do add("width_"..w,tostring(w).." px",54+(i-1)*step,52,step-2,36,current==w) end
         end
-        add("pen_only",_("Pen only"),196,44,82,30,p.stylus_only,Device.input and Device.input.registerStylusCallback~=nil)
-        add("touch",_("Pen + finger"),280,44,96,30,not p.stylus_only)
+        add("pen_only",_("Pen only"),344,52,82,36,p.stylus_only,Device.input and Device.input.registerStylusCallback~=nil)
+        add("touch",_("Pen + finger"),428,52,108,36,not p.stylus_only)
     end
     return list
 end
@@ -202,17 +206,18 @@ function InkBar:render()
         text("hub",label.." ▸",10,true,p.white,3,3,42,24)
         return
     end
-    text("drag","⠿",15,true,p.muted,3,4,18,32)
+    text("drag","⠿",18,true,p.muted,3,4,22,40)
     if info.id~="read" then
-        box(4,40,372,1,p.line)
-        text("context",info.id=="eraser" and _("Stroke") or info.name,9,true,active,4,44,52,30)
+        box(4,48,532,1,p.line)
+        text("context",info.id=="eraser" and _("Stroke") or info.name,11,true,active,4,52,48,36)
     end
     for _,button in ipairs(self:buttons()) do
         local color=p[button.id] or active
         box(button.x,button.y,button.w,button.h,button.selected and color or p.line,3)
         if not button.selected then box(button.x+1,button.y+1,button.w-2,button.h-2,button.enabled and p.panel or p.soft,2) end
         local label=(button.selected and "✓ " or "")..button.label
-        text(button.id,label,button.id=="highlight" and 9 or 9.5,button.selected,
+        local size=button.id:match("^width_") and 10.5 or (button.id=="pen_only" or button.id=="touch") and 11 or 12
+        text(button.id,label,size,button.selected,
             button.selected and p.white or p.ink,button.x+2,button.y+1,button.w-4,button.h-2)
     end
 end
