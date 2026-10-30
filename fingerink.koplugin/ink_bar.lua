@@ -82,8 +82,18 @@ function InkBar:init()
     self.palette=THEMES[self.color_mode and "color" or "mono"];self.color_cache={}
     self.expanded=false;self.labels={}
     self.hub_w,self.hub_h=self:S(48),self:S(30)
-    self.position=self.position or {x=self.side=="left" and 8 or Screen:getWidth()-self.hub_w-8,
-        y=Screen:getHeight()-self.hub_h-8}
+    local default_x=self.side=="left" and 8 or Screen:getWidth()-self.hub_w-8
+    local default_y=round((Screen:getHeight()-self.hub_h)/2)
+    -- Move the previous bottom-edge default above the reader's progress bar.
+    -- Keep custom placements elsewhere exactly as the user saved them.
+    local old_default=self.position
+        and math.abs(self.position.y-(Screen:getHeight()-self.hub_h-8))<=4
+        and (math.abs(self.position.x-8)<=4
+            or math.abs(self.position.x-(Screen:getWidth()-self.hub_w-8))<=4)
+    if not self.position or old_default then
+        self.position={x=default_x,y=default_y}
+        if old_default then self.plugin:setBarPosition(default_x,default_y) end
+    end
     self:layout();self:update(false)
 end
 function InkBar:S(value) return math.max(1,round(value*self.scale)) end

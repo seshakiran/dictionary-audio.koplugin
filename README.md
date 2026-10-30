@@ -77,8 +77,9 @@ Top menu → More tools → PageScribe
 
 The tray collapses to a small **handwriting icon**, just 48 × 30
 logical pixels. Tap it to open a larger inline tool strip. The launch tab stays small, while
-the opened tray uses the screen’s normal scale and larger touch targets. The default position is near the bottom
-edge; saved positions are preserved.
+the opened tray uses the screen’s normal scale and larger touch targets. The default position is midway down the right
+edge, away from KOReader’s progress bar. Saved custom positions are preserved;
+the previous bottom-edge default is moved to the middle on upgrade.
 
 Tap **Read | Pen | Highlight | Erase** to activate a tool immediately. A filled
 button and checkmark show the active tool. Its options appear **inline below the

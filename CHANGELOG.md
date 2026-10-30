@@ -1,3 +1,8 @@
+## 0.9.2 — reachable launcher position
+
+- Start the handwriting launcher halfway down the right edge, clear of KOReader's progress bar.
+- Move the previous bottom-edge default to the middle on upgrade while preserving other saved placements and the preferred toolbar side.
+
 ## 0.9.1 — icon launcher and moved-tray input fix
 
 - Replace launch text with a font-independent pen-and-handwriting icon.
