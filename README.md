@@ -177,12 +177,14 @@ remain outside it.
 ## Offline dictionaries and pronunciation on Android
 
 The optional `dictionary-audio.koplugin.zip` release asset adds **Hear English**
-to dictionary popups using KOReader's dictionary-button extension API, present
+and **Hear Spanish** to dictionary popups using KOReader's dictionary-button extension API, present
 in the inspected Viwoods build. It plays local recorded English headwords with
 Android MediaPlayer; there are no online calls or API keys. This pronounces the
 English lookup word for either English definitions or English–Spanish translations.
-It does not speak entire definitions or Spanish translations, and not every
-headword has a recording. Actual speaker output still requires device testing.
+**Hear Spanish** opens a scrollable list of the Spanish translations of the
+English word. Tap one to play its offline Latin American Spanish pronunciation,
+synthesized locally with eSpeak NG. These are synthetic clips, not human recordings.
+Neither button reads entire definitions. Not every English headword has a recording. Actual speaker output still requires device testing.
 
 Install the audio plugin in `koreader/plugins/` and restart KOReader. Put an
 English–English dictionary and an English–Spanish dictionary in separate folders
@@ -206,3 +208,13 @@ small MTP transfers. Audio data is not distributed in plugin releases.
 Choose **Read**, then long-press an English word. Use the popup dictionary selector
 to switch between definitions and Spanish translations, and **Hear English** to
 play its available recording. Use Android's media volume for playback volume.
+
+To reproduce the Spanish pack with eSpeak NG installed:
+
+```sh
+python3 scripts/pack-spanish-audio.py stardict.idx stardict.dict spanish-audio
+```
+
+Use the index and dictionary from WikDict English–Spanish. Copy `spanish-audio`
+under `koreader/data/dict/` too. The generator merges meanings for duplicate
+English headwords and stores each distinct Spanish translation only once.

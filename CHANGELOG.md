@@ -3,7 +3,7 @@
 - Replace the removable toolbar with a permanent state hub and tap-to-open radial wheel.
 - Show the active tool, select pen/marker/eraser directly, and offer Read, Undo, Note and width controls.
 - Merge brush runs and batch display posts at 30 Hz, with a final pen-up flush and cancellation on redraw.
-- Add optional offline English dictionary audio plugin and a local recording packer.
+- Add optional offline English and Spanish dictionary audio plugin and a local recording packer.
 - Cover wheel input, hidden-control recovery, refresh coalescing, and audio lifecycle with tests.
 - Device latency and physical speaker output need live verification.
 
