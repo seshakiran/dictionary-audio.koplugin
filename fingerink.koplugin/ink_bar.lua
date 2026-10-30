@@ -114,6 +114,7 @@ end
 function InkBar:setExpanded(on)
     on=on and true or false
     if on==self.expanded then return end
+    if self.drag_start then self:finishDrag() end
     local old=copy(self.dimen)
     self.expanded=on
     if on then self.plugin:abortStroke() end
@@ -186,6 +187,28 @@ function InkBar:buttons()
     end
     return list
 end
+-- Draw the launcher as a pen nib and handwriting, without font glyphs/assets.
+function InkBar:handwritingIcon(bb,color)
+    local function line(ax,ay,bx,by)
+        local x,y,ex,ey=self:S(ax),self:S(ay),self:S(bx),self:S(by)
+        local dx,dy=math.abs(ex-x),-math.abs(ey-y)
+        local sx,sy=x<ex and 1 or -1,y<ey and 1 or -1
+        local err=dx+dy
+        while true do
+            self:rect(bb,x,y,self:S(1),self:S(1),color)
+            if x==ex and y==ey then break end
+            local twice=2*err
+            if twice>=dy then err=err+dy;x=x+sx end
+            if twice<=dx then err=err+dx;y=y+sy end
+        end
+    end
+    local nib={{24,6},{29,11},{18,22},{12,24},{14,18},{24,6}}
+    for i=2,#nib do line(nib[i-1][1],nib[i-1][2],nib[i][1],nib[i][2]) end
+    line(21,9,26,14);line(14,18,18,22)
+    local writing={{7,25},{11,25},{14,23},{17,25},{23,25},{27,22},{30,25},{39,25}}
+    for i=2,#writing do line(writing[i-1][1],writing[i-1][2],writing[i][1],writing[i][2]) end
+end
+
 function InkBar:render()
     local d,p,info=self.dimen,self.palette,self:displayInfo()
     self.info=info;self.undo_available=self:canUndo()
@@ -202,8 +225,7 @@ function InkBar:render()
     local active=p[info.id]
     if not self.expanded then
         box(2,2,44,26,active,3)
-        local label=info.id=="highlight" and _("Mark") or info.name
-        text("hub",label.." ▸",10,true,p.white,3,3,42,24)
+        self:handwritingIcon(bb,p.white)
         return
     end
     text("drag","⠿",18,true,p.muted,3,4,22,40)
@@ -245,6 +267,20 @@ function InkBar:activate(id)
     elseif id=="read" then p:setDrawing(false)
     else p:setTool(id) end
 end
+function InkBar:buttonAt(x,y)
+    for _,button in ipairs(self:buttons()) do
+        local left,top=self.dimen.x+self:S(button.x),self.dimen.y+self:S(button.y)
+        if x>=left and x<left+self:S(button.w) and y>=top and y<top+self:S(button.h) then return button end
+    end
+end
+function InkBar:finishDrag(pos)
+    local drag=self.drag_start
+    if not drag then return end
+    if pos then self:moveDrag(pos) end
+    self.drag_start=nil
+    UIManager:setDirty(self.plugin.ui,"full",union(drag.origin,self.dimen))
+    self.plugin:setBarPosition(self.dimen.x,self.dimen.y)
+end
 function InkBar:moveDrag(pos)
     local s=self.drag_start
     local old=copy(self.dimen)
@@ -255,11 +291,14 @@ function InkBar:moveDrag(pos)
     UIManager:setDirty(self.plugin.ui,"ui",damage);UIManager:setDirty(self,"ui",damage)
 end
 function InkBar:onGesture(ges)
-    local pos=ges.pos
+    local pos,kind=ges.pos,ges.ges
+    -- A fresh contact/tap cannot belong to a previous drag. Recover even if a
+    -- platform dropped its terminal event, without swallowing this new tap.
+    if (kind=="touch" or kind=="tap") and self.drag_start then self:finishDrag() end
     if not pos then return end
     local inside=self:contains(pos.x,pos.y)
-    local kind=ges.ges
     if kind=="hold" and inside then
+        if self.drag_start then self:finishDrag() end
         self.drag_start={x=pos.x,y=pos.y,px=self.dimen.x,py=self.dimen.y,origin=copy(self.dimen)};return true
     end
     if kind=="pan" or kind=="hold_pan" then
@@ -270,12 +309,15 @@ function InkBar:onGesture(ges)
         end
         self:moveDrag(pos);return true
     end
+    if kind=="swipe" or kind=="multiswipe" then
+        -- Swipes report their start in pos, and their lift point in end_pos.
+        if not self.drag_start and inside and ges.end_pos then
+            self.drag_start={x=pos.x,y=pos.y,px=self.dimen.x,py=self.dimen.y,origin=copy(self.dimen)}
+        end
+        if self.drag_start then self:finishDrag(ges.end_pos);return true end
+    end
     if (kind=="pan_release" or kind=="hold_release") and self.drag_start then
-        local origin=self.drag_start.origin
-        self:moveDrag(pos);self.drag_start=nil
-        UIManager:setDirty(self.plugin.ui,"full",union(origin,self.dimen))
-        self.plugin:setBarPosition(self.dimen.x,self.dimen.y)
-        return true
+        self:finishDrag(pos);return true
     end
     if self.drag_start then return true end
     if kind~="tap" then return inside or nil end
@@ -284,14 +326,8 @@ function InkBar:onGesture(ges)
         return
     end
     if not self.expanded then self:setExpanded(true);return true end
-    local x=(pos.x-self.dimen.x)/self.scale
-    local y=(pos.y-self.dimen.y)/self.scale
-    for _,button in ipairs(self:buttons()) do
-        if x>=button.x and x<button.x+button.w and y>=button.y and y<button.y+button.h then
-            if button.enabled then self:activate(button.id) end
-            return true
-        end
-    end
+    local button=self:buttonAt(pos.x,pos.y)
+    if button and button.enabled then self:activate(button.id) end
     return true
 end
 function InkBar:windowBelow()

@@ -1,3 +1,10 @@
+## 0.9.1 — icon launcher and moved-tray input fix
+
+- Replace launch text with a font-independent pen-and-handwriting icon.
+- Finish quick drags on KOReader swipe/multiswipe releases, using end_pos rather than the swipe start point.
+- Recover from interrupted drags on a new contact or tap, so controls cannot stay latched in dragging mode.
+- Share integral screen rectangles between rendering and button hit testing.
+
 ## 0.9.0 — small launcher, larger inline tray
 
 - Keep the launch tab small while expanding the inline tray at the screen's normal scale, with larger labels and tap targets.

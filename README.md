@@ -75,7 +75,7 @@ Open:
 Top menu → More tools → PageScribe
 ```
 
-The tray collapses to a small **Read / Pen / Mark / Erase ▸** tab, just 48 × 30
+The tray collapses to a small **handwriting icon**, just 48 × 30
 logical pixels. Tap it to open a larger inline tool strip. The launch tab stays small, while
 the opened tray uses the screen’s normal scale and larger touch targets. The default position is near the bottom
 edge; saved positions are preserved.
@@ -279,3 +279,7 @@ high-contrast rendering. No state depends on color alone.
 The product name is PageScribe. The `fingerink.koplugin` install folder, update
 URL, internal settings, and gesture identifiers remain stable to preserve
 existing notes and upgrades. Do not install a second copy under a new folder.
+
+Quick drags and long-press drags both release the tray correctly. Its button
+targets follow the rendered tray at the current screen position. A new tap
+recovers from an interrupted drag instead of leaving the controls locked.

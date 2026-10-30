@@ -362,6 +362,41 @@ do
     check("expanded tray also follows direct drag",bar.dimen.x,old_x-30)
     gesture("pan_release",x-30,y-40)
     check("drag does not activate a tool",bar:activeId(),"pen")
+    -- KOReader emits swipe (with pos=start and end_pos=lift) on quick drags.
+    x,y=bar.dimen.x+bar:S(10),bar.dimen.y+bar:S(16)
+    local start={x=x,y=y};local finish={x=x+20,y=y-60}
+    gesture("pan",finish.x,finish.y,start)
+    bar:handleEvent(Event:new("Gesture",{ges="swipe",pos=start,end_pos=finish}))
+    check("quick drag clears pending drag state",bar.drag_start,nil)
+    tap("width_9")
+    check("inline width remains usable after quick drag",p.pen_width,9)
+    tap("width_7")
+
+    for index,target in ipairs({{40,60},{300,600},{20,1100}}) do
+        x,y=bar.dimen.x+bar:S(10),bar.dimen.y+bar:S(16)
+        local origin={x=x,y=y}
+        local finish={x=x+target[1]-bar.dimen.x,y=y+target[2]-bar.dimen.y}
+        gesture("pan",finish.x,finish.y,origin)
+        bar:handleEvent(Event:new("Gesture",{ges=index==2 and "multiswipe" or "swipe",pos=origin,end_pos=finish}))
+        check("drag persists new screen position "..index,p.bar_position.y,bar.dimen.y)
+        tap("read");check("Read works after relocation "..index,p.drawing,false)
+        tap("pen");tap("width_10");check("pen width works after relocation "..index,p.pen_width,10)
+        tap("highlight");tap("width_36");check("highlight works after relocation "..index,p.highlighter_width,36)
+        tap("eraser");check("eraser works after relocation "..index,p.eraser,true)
+        tap("pen_only");check("input choice works after relocation "..index,p.stylus_only,true)
+        tap("touch");tap("audio");check("Audio works after relocation "..index,log[1],"audio")
+        open();tap("note");check("Notes works after relocation "..index,log[1],"notes")
+        open();tap("pen")
+        p.store={get=function() return {{n=1}} end}
+        check("Undo works after relocation "..index,tap("undo"),"undo")
+        p.store=nil
+    end
+    x,y=bar.dimen.x+bar:S(10),bar.dimen.y+bar:S(16)
+    gesture("pan",x+10,y-20,{x=x,y=y})
+    tap("width_12")
+    check("new tap recovers interrupted drag",bar.drag_start,nil)
+    check("recovery does not swallow the option tap",p.pen_width,12)
+    tap("width_7")
     x,y=bar.cx,bar.cy
     gesture("pan",-500,-500,{x=x,y=y});gesture("pan_release",-500,-500)
     check("drag clamps safely at screen edge",bar.dimen.x==2 and bar.dimen.y==2,true)
@@ -406,6 +441,11 @@ do
             p.drawing=tool~="read";p.highlighter=tool=="highlight";p.eraser=tool=="eraser"
             b:update(false);b:paintTo(screen)
         end
+        for _,button in ipairs(b:buttons()) do
+            local px=b.dimen.x+b:S(button.x)+math.floor(b:S(button.w)/2)
+            local py=b.dimen.y+b:S(button.y)+math.floor(b:S(button.h)/2)
+            check("rendered button matches screen target "..scale.." "..button.id,b:buttonAt(px,py).id,button.id)
+        end
         check("bounded integral rendering at DPI scale "..scale,paints>0,true)
         local surface=b.surface;b:paintTo(screen)
         check("unchanged menu reuses cached surface "..scale,b.surface,surface)
@@ -415,7 +455,9 @@ do
         p.store=nil
         b:paintTo(screen)
         check("empty page updates cached Undo availability "..scale,b.undo_available,false)
-        b:setExpanded(false);b:paintTo(screen);b:onCloseWidget()
+        b:setExpanded(false);b:paintTo(screen)
+        check("launcher icon uses no text glyphs "..scale,next(b.labels),nil)
+        b:onCloseWidget()
     end
     local Device=require("device")
     local old_color,old_rgb,old_type=Device.hasColorScreen,BB.ColorRGB32,BB.TYPE_BBRGB32
