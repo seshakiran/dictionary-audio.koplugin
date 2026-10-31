@@ -22,6 +22,7 @@ env[0]={
  NewStringUTF=function(_,str) return str end,
 }
 local fail=false
+local expected_offset,expected_length=100,120
 local jni={env=env,
  context=function(self,vm,fn) return fn(self) end,
  callObjectMethod=function(_,object,method,signature,...)
@@ -34,7 +35,7 @@ local jni={env=env,
  callVoidMethod=function(_,object,method,signature,...)
   calls[#calls+1]=method
   if method=='setDataSource' then
-   local fd,offset,length=...;assert(fd=='fd' and offset==100 and length==120)
+   local fd,offset,length=...;assert(fd=='fd' and offset==expected_offset and length==expected_length)
    assert(signature=='(Ljava/io/FileDescriptor;JJ)V')
   end
   if method=='prepare' and fail then exception=true end
@@ -54,13 +55,33 @@ fail=false;calls={}
 assert(player:play('pack',100,120,0.85))
 assert(table.concat(calls,',')=='setDataSource,prepare,setPlaybackParams,start,close')
 player:stop();assert(globals==3 and deleted==3)
+-- A FLAC after the 2 GiB boundary must be passed to Android as an isolated
+-- byte-zero file, and replacing/stopping playback must clean it up.
+local pack,clip=os.tmpname(),os.tmpname()
+local payload='fLaC'..string.rep('audio',20)
+local pf=assert(io.open(pack,'wb'));assert(pf:seek('set',2147483650));pf:write(payload);pf:close()
+expected_offset,expected_length=0,#payload
+assert(player:play(pack,2147483650,#payload,1,clip))
+local cf=assert(io.open(clip,'rb'));assert(cf:read('*a')==payload);cf:close()
+assert(player:play(pack,2147483650,#payload,1,clip))
+player:stop();assert(io.open(clip,'rb')==nil)
+local good_count=globals
+assert(not player:play(pack,2147483650,#payload+1,1,clip))
+assert(not player:play(pack,-1,#payload,1,clip))
+assert(not player:play(pack,0,8*1024*1024+1,1,clip))
+assert(globals==good_count and io.open(clip,'rb')==nil)
+fail=true
+assert(not player:play(pack,2147483650,#payload,1,clip))
+assert(player.player==nil and io.open(clip,'rb')==nil)
+fail=false;os.remove(pack)
+expected_offset,expected_length=100,120
 print('Dictionary audio: index normalization, missing data, bounded playback, release and Java exception cleanup passed')
 local translations_path=os.tmpname()
 local tf=assert(io.open(translations_path,'wb'));tf:write('book\tlibro\tlibreto\nwrite\tescribir\n');tf:close()
 local translations=assert(Index.translations(translations_path));os.remove(translations_path)
 assert(translations.book[1]=='libro' and translations.book[2]=='libreto')
 assert(Index.find({['Ácido']={0,1}},'Ácido')[2]==1)
-package.preload['datastorage']=function() return {} end
+package.preload['datastorage']=function() return {getDataDir=function() return 'test' end} end
 package.preload['device']=function() return {screen={getWidth=function() return 1000 end}} end
 package.preload['gettext']=function() return function(s) return s end end
 package.preload['ui/widget/notification']=function() return {new=function(_,o) return o end} end
@@ -74,13 +95,15 @@ local Audio=dofile('dictionary-audio.koplugin/main.lua')
 local played
 local audio=Audio:extend{root='test/',translations=translations,
  indices={spanish={libro={100,120},libreto={100,120}},english={book={100,120}}},
- player={play=function(_,path,offset,length,rate) played={path,offset,length,rate};return true end,stop=function() end}}
+ player={play=function(_,path,offset,length,rate,clip) played={path,offset,length,rate,clip};return true end,stop=function() end}}
 audio:showSpanish('book')
 assert(shown.title=='Hear Spanish: book' and #shown.item_table==2)
 shown.item_table[2].callback()
 assert(played[1]=='test/spanish-neural-audio/spanish.pack')
 assert(played[2]==100 and played[3]==120)
+assert(played[5]=='test/cache/dictionary-audio-spanish.flac')
 audio:pronounce('BOOK');assert(played[1]=='test/english-audio/english.pack')
+assert(played[5]==nil)
 audio:showSpanish('libro');assert(played[1]=='test/spanish-neural-audio/spanish.pack')
 print('Spanish audio: translation alternatives, exact accented keys, chooser callbacks and English/Spanish pack selection passed')
 

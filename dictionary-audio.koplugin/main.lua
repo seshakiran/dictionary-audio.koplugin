@@ -50,7 +50,8 @@ function Audio:play(language,word)
     end
     local entry=Index.find(self.indices[language],word)
     if not entry then self:notify(_("No offline recording for this word."));return end
-    local ok,err=self.player:play(path..".pack",entry[1],entry[2],language=="spanish" and (self.spanish_rate or 0.85) or 1.0)
+    local clip_path=language=="spanish" and (DataStorage:getDataDir().."/cache/dictionary-audio-spanish.flac") or nil
+    local ok,err=self.player:play(path..".pack",entry[1],entry[2],language=="spanish" and (self.spanish_rate or 0.85) or 1.0,clip_path)
     if not ok then self:notify(tostring(err)) else self.playing_language=language end
 end
 function Audio:showSpanish(word)

@@ -25,7 +25,7 @@ Requirements: Android and a KOReader build exposing `dictionary:addToDictButtons
 - **Slower:** 85%, the default
 - **Very slow:** 70%
 
-Playback speed preserves the voice’s pitch; English stays at normal speed. Settings persist across books and restarts. Disabling a language hides its dictionary button and stops its current clip. Use Android’s media volume for loudness. **Update plugin** in this menu follows this repository.
+Playback speed preserves the voice’s pitch; English stays at normal speed. Settings persist across books and restarts. Disabling a language hides its dictionary button and stops its current clip. Spanish playback uses one small temporary clip in KOReader’s cache for compatibility with Android audio decoders; it is removed when playback is replaced or stopped. Use Android’s media volume for loudness. **Update plugin** in this menu follows this repository.
 
 **Hear English** plays the English headword. **Hear Spanish** lists the looked-up English word’s translations; tap a Spanish word to hear its pronunciation. These buttons pronounce words, rather than reading definitions aloud.
 

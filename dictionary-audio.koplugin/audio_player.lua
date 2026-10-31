@@ -5,17 +5,42 @@ function Player.new(android,ffi)
     return setmetatable({android=android,ffi=ffi},{__index=Player})
 end
 function Player:release(jni)
-    if not self.player then return end
-    jni:callVoidMethod(self.player,"release","()V")
-    jni.env[0].DeleteGlobalRef(jni.env,self.player)
-    self.player=nil
+    if self.player then
+        jni:callVoidMethod(self.player,"release","()V")
+        jni.env[0].DeleteGlobalRef(jni.env,self.player)
+        self.player=nil
+    end
+    if self.clip_path then os.remove(self.clip_path);self.clip_path=nil end
 end
 function Player:stop()
     if not self.player then return end
     self.android.jni:context(self.android.app.activity.vm,function(jni) self:release(jni) end)
 end
-function Player:play(path,offset,length,rate)
+function Player:play(path,offset,length,rate,clip_path)
     rate=rate or 1.0
+    -- Some Android FLAC extractors do not honor a nonzero pack offset when
+    -- seeking. Give them a complete, small FLAC file starting at byte zero.
+    if clip_path then
+        self:stop()
+        if offset<0 or offset~=math.floor(offset) or length<=0
+            or length~=math.floor(length) or length>8*1024*1024 then
+            return false,"Invalid offline audio clip bounds."
+        end
+        local source=io.open(path,"rb")
+        if not source then return false,"Offline audio pack could not be opened." end
+        local positioned=source:seek("set",offset)
+        local bytes=positioned and source:read(length)
+        source:close()
+        if not bytes or #bytes~=length then return false,"Offline audio clip is incomplete." end
+        local output=io.open(clip_path,"wb")
+        if not output then return false,"Offline audio temporary file could not be created." end
+        local written=output:write(bytes)
+        local closed=output:close()
+        if not written or not closed then
+            os.remove(clip_path);return false,"Offline audio temporary file could not be written."
+        end
+        path,offset=clip_path,0
+    end
     return self.android.jni:context(self.android.app.activity.vm,function(jni)
         local env=jni.env
         local refs={}
@@ -40,6 +65,7 @@ function Player:play(path,offset,length,rate)
         end
         local ok,err=pcall(function()
             self:release(jni);check()
+            self.clip_path=clip_path
             local path_string=localRef(env[0].NewStringUTF(env,path))
             stream=construct("java/io/FileInputStream","(Ljava/lang/String;)V",path_string)
             local fd=localRef(jni:callObjectMethod(stream,"getFD","()Ljava/io/FileDescriptor;"))

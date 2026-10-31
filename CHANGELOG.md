@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 — Spanish playback compatibility
+
+- Play Spanish FLAC clips from a bounded temporary file to avoid Android decoder issues seeking inside large audio packs.
+- Keep English playback unchanged and remove the temporary clip when playback is replaced or stopped.
+
 ## 0.4.0 — independent Dictionary Audio
 
 - Publish Dictionary Audio in its own repository with a dedicated plugin ZIP, CI and release workflow.
