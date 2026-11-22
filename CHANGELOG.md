@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 — community marketplace support
+
+- Document App Store installation, repository matching and updates.
+- Keep a stable plugin identifier and explicit metadata version for update detection.
+- Include the Android Spanish decoder compatibility fix from 0.4.1; audio packs remain separate data.
+
 ## 0.4.1 — Spanish playback compatibility
 
 - Play Spanish FLAC clips from a bounded temporary file to avoid Android decoder issues seeking inside large audio packs.

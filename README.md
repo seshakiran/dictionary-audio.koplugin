@@ -2,6 +2,15 @@
 
 English pronunciation recordings and Spanish pronunciation for KOReader dictionary popups on Android. **Dictionary Audio installs and works independently of PageScribe.** When both plugins are installed, PageScribe provides a convenient Audio shortcut.
 
+## Install and update through the community App Store
+
+In [KOReader App Store](https://github.com/omer-faruq/appstore.koplugin), open **Tools → App Store → Plugins**, refresh the catalogue, and search for **Offline Dictionary Audio** or filter by owner **seshakiran**. Select **seshakiran/dictionary-audio.koplugin** and choose **Install**, then fully restart KOReader. If the entry is missing from a cached catalogue, use **Plugins → ⚙ → Install plugin from URL** and enter `https://github.com/seshakiran/dictionary-audio.koplugin`.
+
+For updates, open **App Store → Check plugin updates** and select this plugin. For a manually installed copy, use **Match with URL** once to associate it with the repository above. Update the existing installation and restart KOReader; do not create a second plugin folder. Release assets and repository archives both identify the same runtime folder, `dictionary-audio.koplugin`.
+
+**Installing the plugin does not install pronunciation recordings or definition dictionaries.** Follow **Audio packs and definition dictionaries** below before expecting sound. Playback requires Android; PageScribe is optional. Packs and settings live outside the plugin folder and are retained during plugin updates.
+
+
 ## Feature video
 
 https://github.com/user-attachments/assets/561f65a5-9c4f-4087-a0ba-2a357c53295f
